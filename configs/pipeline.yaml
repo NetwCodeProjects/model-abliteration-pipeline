@@ -1,0 +1,95 @@
+# Opinionated configuration: Qwen/Qwen3.8-27B on one NVIDIA B200 (Lambda Cloud).
+#
+# COMPATIBILITY NOTICE: This platform does not automatically verify that your model architecture is
+# supported by the selected abliteration engine or quantization backend. Verify compatibility with the
+# engines' official documentation before execution. Unsupported models or formats may fail during model
+# loading, transformation, or export. The platform manages execution, dependencies, logs, and artifacts
+# but does not guarantee compatibility with every model.
+#
+# Every key is documented in docs/configuration.md and validated against schemas/pipeline.schema.json.
+# Relative paths are resolved against the repository root.
+schema_version: '1.0'
+profiles:
+  - quantization/default.yaml        # quantization defaults (merged below this file)
+
+model:
+  url: Qwen/Qwen3.8-27B              # original BF16 checkpoint (NOT the -FP8 derivative)
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0   # commit verified 2026-10-26; set null to follow main (still pinned per run)
+  trust_remote_code: false
+  hf_token_env: HF_TOKEN             # repo is public; a token only raises rate limits
+
+environment:
+  profile: auto                      # auto | lambda-stack | ubuntu (CLI: --lambda-stack / --ubuntu)
+  install_missing: true              # project-local tool venvs and the llama.cpp build
+  allow_system_packages: false       # apt-get needs explicit opt-in (+ --yes)
+  allow_driver_changes: false
+  allow_reboot: false
+  python_manager: uv
+  python_version: '3.12'
+  torch_backend: auto                # uv picks the CUDA wheel matching the installed driver
+  min_free_disk_gb: 50
+  disk_buffer_gb: 100
+
+abliteration:
+  enabled: true
+  engine: heretic
+  # 'optimize' is the verified native pathway. 'reproduce' for the coder3101 ARA reference can only be
+  # an *approximate* reproduction (no reproduce.json is published) and must be allowed explicitly; see
+  # examples/qwen-b200.yaml and docs/heretic-adapter.md.
+  experiment: optimize
+  engine_revision: null              # null = verified pin 171bb98b (Heretic master with ARA + headless mode)
+  heretic_config: null               # null = configs/heretic/<experiment>.toml
+  max_trials: 50
+  max_runtime_minutes: 180           # Heretic is interrupted at the budget and exports the best completed trial
+  shutdown_grace_minutes: 90         # time allowed to merge and save after a budget stop
+  seed: null                         # null = derived from the run ID and recorded
+  pareto_trial_index: 0              # 0 = fewest refusals on Heretic's Pareto front
+  save_intermediate: true
+  reproduce:
+    reference_repo: coder3101/Qwen3.8-27B-heretic-ara
+    reference_revision: 7904b4f289b67f48430ad27f9e46b41acb82f0e2
+    allow_approximate: false
+    ignore_environment_mismatches: false
+
+evaluation:
+  baseline_mode: published_only      # never re-runs the original or reference models
+  published_baselines: configs/baselines/qwen3.8-27b.yaml
+  qualification: fast                # off | fast | extended
+  independent_smoke_prompts: 30
+  benign_prompts_file: configs/qualification/benign_prompts.yaml
+  extended_kl: false
+  extended_correctness: false
+  enable_thinking: false             # Qwen3.8 thinks by default; short checks disable it (recorded)
+  max_new_tokens: 256
+
+selection:
+  max_optimizer_refusal_rate: 0.2    # Heretic in-loop score (labelled optimizer metric)
+  max_optimizer_kl: 0.1
+  max_heldout_refusal_rate: 0.35     # independent held-out prompts (keyword heuristic)
+  min_benign_pass_rate: 0.7
+  require_integrity: true
+  require_reload: true
+  allow_ungated_promotion: false
+  # Heretic's merged export drops the 15 'mtp.*' tensors (multi-token-prediction draft head) of this
+  # model. Add 'mtp.' to copy them verbatim from the source (they were not abliterated).
+  graft_missing_source_tensors: []
+
+quantization:
+  enabled: true
+  input: selected_master
+
+execution:
+  resume: true
+  stop_on_failure: true
+  allow_partial_exports: true
+  hourly_rate_usd: null              # e.g. 4.99 to get a clearly-labelled cost estimate
+
+storage:
+  root: ./workspace                  # put this on durable storage (e.g. a Lambda filesystem) if you need it later
+  retain_intermediate: true
+  artifact_checksums: sha256
+  link_strategy: auto                # hardlink master files from the candidate when possible
+
+logging:
+  console_level: info
+  redact_prompts: false

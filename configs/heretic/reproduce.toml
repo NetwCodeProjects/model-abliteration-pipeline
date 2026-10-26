@@ -1,0 +1,16 @@
+# Native Heretic settings template for experiment=reproduce.
+#
+# In reproduction mode Heretic replaces its settings with the ones stored in reproduce.json
+# (Settings.model_validate_init_only at the pinned commit). Only settings marked exclude=True upstream
+# (e.g. batch-size probing, chain-of-thought skips, debug output) are taken from this file; everything
+# algorithmic comes from the reproduce input. The orchestrator adds model, save_directory and
+# ignore_mismatches. Keep algorithmic settings out of this file - they would be silently ignored.
+
+max_batch_size = 64
+print_debug_information = false
+
+[batch_size_test_prompts]
+dataset = "mlabonne/harmless_alpaca"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+split = "train[:256]"
+column = "text"

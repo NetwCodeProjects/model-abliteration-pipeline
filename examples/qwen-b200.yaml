@@ -1,0 +1,31 @@
+# Qwen3.8-27B on one B200 (Lambda Stack), attempting the coder3101 ARA reference.
+#
+# The reference publishes ARA parameters but no reproduce.json, and claims an engine build that never
+# shipped ARA (v1.2.0). Exact reproduction is therefore impossible; this config explicitly permits an
+# APPROXIMATE reproduction: the published parameters are applied with the pinned Heretic ARA
+# implementation and default (pinned) datasets. All outputs are labelled 'approximate_reproduction'.
+#
+#   ./main.sh --config examples/qwen-b200.yaml --dry-run
+#   ./main.sh --config examples/qwen-b200.yaml --lambda-stack --yes
+schema_version: '1.0'
+profiles:
+  - ../configs/quantization/default.yaml
+model:
+  url: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+environment:
+  profile: lambda-stack
+abliteration:
+  experiment: reproduce
+  max_runtime_minutes: 120
+  reproduce:
+    reference_repo: coder3101/Qwen3.8-27B-heretic-ara
+    reference_revision: 7904b4f289b67f48430ad27f9e46b41acb82f0e2
+    allow_approximate: true
+evaluation:
+  published_baselines: configs/baselines/qwen3.8-27b.yaml
+  qualification: fast
+selection:
+  graft_missing_source_tensors: ['mtp.']   # keep the multi-token-prediction head (copied verbatim)
+execution:
+  hourly_rate_usd: null

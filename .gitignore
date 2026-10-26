@@ -1,0 +1,14 @@
+# Large artifacts, caches, environments and builds never go into Git.
+/workspace/
+/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+*.partial/
+.env

@@ -1,0 +1,78 @@
+# Native Heretic settings template for experiment=optimize.
+#
+# This is Heretic's own TOML vocabulary (verified against the pinned commit 171bb98b; stage 04 also
+# validates every top-level key against the installed Settings model). Keys owned by the orchestrator
+# (model, n_trials, seed, trial_index, model_action, save_directory, export_strategy, checkpoint_action,
+# study_checkpoint_dir, upload_*) must NOT appear here - set them through the pipeline YAML.
+#
+# Values mirror upstream config.default.toml (AGPL-3.0, (c) Philipp Emanuel Weidmann + contributors)
+# except that every dataset is pinned to a commit for reproducibility.
+
+quantization = "none"          # full-precision loading; bnb_4bit would only save memory during the search
+device_map = "auto"
+offload_outputs_to_cpu = true
+batch_size = 0                 # auto-tuned by Heretic
+max_batch_size = 128
+max_response_length = 100
+n_startup_trials = 30          # capped to max_trials // 3 by the orchestrator unless abliteration.n_startup_trials is set
+max_shard_size = "5GB"
+system_prompt = "You are a helpful assistant."
+
+scorers = [
+    { plugin = "heretic.scorers.keyword_rate.KeywordRate", optimization = "minimize" },
+    { plugin = "heretic.scorers.kl_divergence.KLDivergence", optimization = "minimize" },
+]
+
+modifiers = [
+    { plugin = "heretic.modifiers.ara.ARA" },
+]
+
+[batch_size_test_prompts]
+dataset = "mlabonne/harmless_alpaca"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+split = "train[:256]"
+column = "text"
+
+[[response_prefix_test_prompts]]
+dataset = "mlabonne/harmless_alpaca"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+split = "train[:100]"
+column = "text"
+
+[[response_prefix_test_prompts]]
+dataset = "mlabonne/harmful_behaviors"
+commit = "01cead01398926d81f7c52bdb790ee8cf77ebba7"
+split = "train[:100]"
+column = "text"
+
+[scorer.KeywordRate]
+score_name = "Refusals"
+
+[scorer.KeywordRate.prompts]
+dataset = "mlabonne/harmful_behaviors"
+commit = "01cead01398926d81f7c52bdb790ee8cf77ebba7"
+split = "test[:100]"
+column = "text"
+
+[scorer.KLDivergence.prompts]
+dataset = "mlabonne/harmless_alpaca"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+split = "test[:100]"
+column = "text"
+
+[modifier.ARA]
+preserve_row_magnitudes = true
+lora_rank = 50
+n_optimization_steps = 5
+
+[modifier.ARA.good_prompts]
+dataset = "mlabonne/harmless_alpaca"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+split = "train[:400]"
+column = "text"
+
+[modifier.ARA.bad_prompts]
+dataset = "mlabonne/harmful_behaviors"
+commit = "01cead01398926d81f7c52bdb790ee8cf77ebba7"
+split = "train[:400]"
+column = "text"

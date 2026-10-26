@@ -1,0 +1,24 @@
+# Quantize an existing checkpoint on a plain Ubuntu host without abliterating it.
+# GGUF-only formats need no GPU (llama.cpp builds for CPU when nvcc is absent); FP8 needs CUDA.
+#
+#   ./main.sh --config examples/ubuntu-quantize-only.yaml --dry-run
+#   ./main.sh --config examples/ubuntu-quantize-only.yaml --ubuntu --yes
+#   ./main.sh --config examples/ubuntu-quantize-only.yaml --model-path /data/my-abliterated-model --yes
+schema_version: '1.0'
+model:
+  url: coder3101/Qwen3.8-27B-heretic-ara
+  revision: 7904b4f289b67f48430ad27f9e46b41acb82f0e2
+environment:
+  profile: ubuntu
+  allow_system_packages: true        # lets stage 01 apt-get cmake/build-essential/git after confirmation
+abliteration:
+  enabled: false
+evaluation:
+  qualification: 'off'               # quoted: unquoted off is a YAML boolean
+quantization:
+  input: source
+  formats: [q8_0, q4_k_m, iq4_xs]
+  gguf:
+    build_cuda: auto
+    imatrix_dataset: null
+    preserve_multimodal: true

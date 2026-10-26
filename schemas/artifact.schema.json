@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/model-abliteration-pipeline/artifact.schema.json",
+  "title": "Project A artifact manifest",
+  "description": "One manifest per produced artifact (including the unmodified source). Consumers such as Project B rely only on this file, never on Project A internals.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "parent_artifact_id",
+    "run_id",
+    "model_family",
+    "source_model",
+    "source_revision",
+    "transformation",
+    "precision",
+    "artifact",
+    "tokenizer",
+    "processor",
+    "quantization",
+    "inference",
+    "validation",
+    "evaluation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_id": {"type": "string", "pattern": "^art-[0-9a-f]{24}$", "description": "Content-addressed: derived from the sorted (path, size, sha256) inventory."},
+    "parent_artifact_id": {"type": ["string", "null"], "pattern": "^art-[0-9a-f]{24}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "model_family": {"type": "string", "minLength": 1},
+    "source_model": {"type": ["string", "null"], "description": "Hugging Face repo ID of the original model, or null for a locally supplied model."},
+    "source_revision": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$", "description": "Resolved commit SHA of the original model; null when unknown (locally supplied)."},
+    "transformation": {
+      "type": "object",
+      "required": ["kind", "method", "config_hash", "tool_revision"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["original", "abliteration", "quantization"]},
+        "method": {"type": "string", "minLength": 1},
+        "config_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "tool_revision": {"type": ["string", "null"]}
+      }
+    },
+    "precision": {"type": "string", "minLength": 1},
+    "artifact": {
+      "type": "object",
+      "required": ["format", "uri", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {"enum": ["safetensors", "gguf"]},
+        "uri": {"type": "string", "minLength": 1},
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["relative_path", "size_bytes", "sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "relative_path": {"type": "string", "minLength": 1},
+              "size_bytes": {"type": "integer", "minimum": 0},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "tokenizer": {
+      "type": "object",
+      "required": ["revision", "hash"],
+      "additionalProperties": false,
+      "properties": {
+        "revision": {"type": ["string", "null"]},
+        "hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "processor": {
+      "type": "object",
+      "required": ["revision", "hash"],
+      "additionalProperties": false,
+      "properties": {
+        "revision": {"type": ["string", "null"]},
+        "hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "quantization": {
+      "type": "object",
+      "required": ["recipe_id", "calibration_revision", "imatrix_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "recipe_id": {"type": ["string", "null"]},
+        "calibration_revision": {"type": ["string", "null"]},
+        "imatrix_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "inference": {
+      "type": "object",
+      "required": ["backend", "backend_revision", "tested_context"],
+      "additionalProperties": false,
+      "properties": {
+        "backend": {"type": ["string", "null"]},
+        "backend_revision": {"type": ["string", "null"]},
+        "tested_context": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["integrity_passed", "inference_passed", "modalities_tested"],
+      "additionalProperties": false,
+      "properties": {
+        "integrity_passed": {"type": "boolean"},
+        "inference_passed": {"type": ["boolean", "null"], "description": "null = no loader test was run (explicitly unverified)."},
+        "modalities_tested": {"type": "array", "items": {"enum": ["text", "image", "video", "audio"]}}
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "required": ["qualification_run_id", "metrics_provenance"],
+      "additionalProperties": false,
+      "properties": {
+        "qualification_run_id": {"type": ["string", "null"]},
+        "metrics_provenance": {"enum": ["not-evaluated", "integrity-only", "optimizer-only", "fast-qualification", "extended-qualification"]}
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Additional lineage/diagnostic details (storage semantics, dropped tensors, engine trial, smoke-test outputs). Consumers must tolerate unknown keys here."
+    }
+  }
+}

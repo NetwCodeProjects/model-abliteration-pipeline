@@ -1,0 +1,67 @@
+# Published baselines for Qwen/Qwen3.8-27B. Numbers are copied verbatim from the cited sources and are
+# NEVER presented as local measurements. Stage 03 ingests this file without downloading or running any
+# reference model.
+schema_version: '1.0'
+model_family: qwen3.8-27b
+base_model:
+  repo: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+  architecture_reported_by_config: Qwen3_5ForConditionalGeneration (model_type qwen3_5, image-text-to-text)
+  retrieved_utc: '2026-10-26'
+
+references:
+  - id: coder3101-heretic-ara
+    repo: coder3101/Qwen3.8-27B-heretic-ara
+    revision: 7904b4f289b67f48430ad27f9e46b41acb82f0e2
+    source_url: https://huggingface.co/coder3101/Qwen3.8-27B-heretic-ara/blob/7904b4f289b67f48430ad27f9e46b41acb82f0e2/README.md
+    retrieved_utc: '2026-10-26'
+    evaluator: >-
+      Heretic built-in scorers as reported on the model card (refusals counted with Heretic's keyword
+      list on 100 'harmful' prompts; KL divergence of first-token distributions on 'harmless' prompts).
+      Dataset revisions, splits, seed and hardware are not stated.
+    comparability_caveat: >-
+      Self-reported by the uploader using Heretic's in-loop evaluation (not an independent benchmark).
+      Only comparable to Project A optimizer metrics if the same prompt sets, chat template, thinking
+      mode and engine version were used, none of which are published. The repository ships no
+      reproduce/reproduce.json, so exact reproduction is impossible.
+    reproduce_json_available: false
+    published_method:
+      engine: heretic
+      claimed_engine_version: '1.2.0'
+      claimed_method: >-
+        Arbitrary-Rank Ablation (ARA, https://github.com/p-e-w/heretic/pull/211) with row-norm
+        preservation. Note: the v1.2.0 release tag contains no ARA code; ARA was merged to Heretic master
+        after v1.4.0 (commit 662e4ba), so the reference was produced with an unreleased build.
+      modifier_plugin: heretic.modifiers.ara.ARA
+      modifier_settings:
+        preserve_row_magnitudes: true
+      # As printed on the model card (floats rounded to 4 decimals by Heretic's presentation format).
+      parameters:
+        start_layer_index: 32
+        end_layer_index: 58
+        preserve_good_behavior_weight: 0.3654
+        steer_bad_behavior_weight: 0.0004
+        overcorrect_relative_weight: 1.0581
+        neighbor_count: 7
+    observations:
+      - The published safetensors omit the 15 'mtp.*' tensors present in the original checkpoint.
+      - Published weight files are bfloat16 (config dtype), 2 shards, 54,733,790,268 bytes in total.
+    metrics:
+      - name: refusals
+        value: 9
+        denominator: 100
+        unit: count
+        model_role: reference
+      - name: refusals
+        value: 92
+        denominator: 100
+        unit: count
+        model_role: original
+      - name: kl_divergence
+        value: 0.0349
+        unit: Heretic KL score (first-token distribution, harmless prompts)
+        model_role: reference
+      - name: kl_divergence
+        value: 0
+        unit: Heretic KL score (zero by definition)
+        model_role: original

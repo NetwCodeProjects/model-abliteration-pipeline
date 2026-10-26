@@ -1,0 +1,144 @@
+# Annotated example of EVERY orchestration key (values shown are the built-in defaults unless noted).
+# This YAML is the platform's contract - it is translated into native Heretic / llama.cpp / llm-compressor
+# settings by stages 04 and 08; it is never handed to an engine verbatim.
+#
+# COMPATIBILITY NOTICE: This platform does not automatically verify that your model architecture is
+# supported by the selected abliteration engine or quantization backend. Verify compatibility with the
+# engines' official documentation before execution. Unsupported models or formats may fail during model
+# loading, transformation, or export. The platform manages execution, dependencies, logs, and artifacts
+# but does not guarantee compatibility with every model.
+schema_version: '1.0'
+profiles: []                         # extra YAML files merged *below* this one (paths relative to this file)
+
+model:
+  url: 'Qwen/Qwen3.8-27B'            # repo ID or https://huggingface.co/<org>/<name>   (example value)
+  revision: null                     # resolved and pinned to a commit SHA in stage 02
+  local_path: null                   # mutually exclusive with url
+  trust_remote_code: false           # opt-in only; see docs/security-and-trust.md
+  hf_token_env: 'HF_TOKEN'           # env var NAME; the token value is never stored or logged
+  family: null                       # manifest model_family; default = lower-cased repo name
+
+environment:
+  profile: auto                      # auto | lambda-stack | ubuntu
+  install_missing: true
+  allow_system_packages: false       # sudo apt-get for missing build tools (needs --yes or a TTY 'y')
+  allow_driver_changes: false        # ubuntu profile: guarded 'ubuntu-drivers install --gpgpu'
+  allow_reboot: false                # reserved; v1 never reboots
+  python_manager: uv
+  python_version: '3.12'
+  torch_backend: auto                # uv --torch-backend (auto | cpu | cu128 | cu129 | cu130 ...)
+  torch_source: pip                  # pip | system (lambda-stack only, experimental)
+  gpu_device: auto                   # or a CUDA_VISIBLE_DEVICES value such as '0'
+  cache_root: null                   # default <storage.root>/cache
+  min_free_disk_gb: 50
+  disk_buffer_gb: 100
+  uv_executable: null
+
+abliteration:
+  enabled: true
+  engine: heretic
+  experiment: optimize               # reproduce | optimize
+  engine_repo: 'https://github.com/p-e-w/heretic.git'
+  engine_revision: null              # null = verified pin
+  heretic_config: null               # null = configs/heretic/<experiment>.toml
+  max_trials: 50
+  n_startup_trials: null
+  max_runtime_minutes: 180
+  shutdown_grace_minutes: 90
+  seed: null
+  pareto_trial_index: 0
+  save_intermediate: true
+  reproduce:
+    source: null                     # reproduce.json: path | https URL | hf://<repo>@<rev>/<path>
+    reference_repo: null             # probed for reproduce/reproduce.json
+    reference_revision: null
+    allow_approximate: false         # explicit permission for labelled approximate reproduction
+    ignore_environment_mismatches: false
+
+evaluation:
+  baseline_mode: published_only      # published_only | local (local is not implemented in v1)
+  published_baselines: null          # e.g. configs/baselines/qwen3.8-27b.yaml
+  qualification: fast                # off | fast | extended
+  independent_smoke_prompts: 30
+  benign_prompts_file: configs/qualification/benign_prompts.yaml
+  heldout_refusal_prompts:           # disjoint from Heretic's default train[:400] / test[:100]
+    - {dataset: mlabonne/harmful_behaviors, commit: 01cead01398926d81f7c52bdb790ee8cf77ebba7, config: null, split: 'train[400:416]', column: text}
+    - {dataset: mlabonne/harmful_behaviors, commit: 01cead01398926d81f7c52bdb790ee8cf77ebba7, config: null, split: 'test[100:104]', column: text}
+  heldout_harmless_prompts:
+    - {dataset: mlabonne/harmless_alpaca, commit: 02c6a92cfcf11bb0c387334f8146d149d65b587f, config: null, split: 'test[1000:1100]', column: text}
+  extended_kl: false
+  extended_correctness: false
+  enable_thinking: false
+  max_new_tokens: 256
+  seed: 0
+  # refusal_markers: [...]           # keyword heuristic; see configspec.DEFAULT_REFUSAL_MARKERS
+
+selection:
+  max_optimizer_refusal_rate: 0.2
+  max_optimizer_kl: 0.1
+  max_heldout_refusal_rate: 0.35
+  min_benign_pass_rate: 0.7
+  require_integrity: true
+  require_reload: true
+  optimizer_refusal_score: Refusals
+  optimizer_kl_score: KL divergence
+  allow_ungated_promotion: false
+  graft_missing_source_tensors: []
+
+quantization:
+  enabled: true
+  input: selected_master             # selected_master | source | path
+  input_path: null
+  formats: ['fp8', 'iq4_xs', 'iq3_s']
+  fp8:
+    scheme: auto                     # auto (=fp8_block) | fp8_block | fp8_dynamic
+    calibration_manifest: null
+    ignore: ['lm_head', 're:.*embed_tokens$', 're:.*visual\..*', 're:.*vision_tower.*', 're:.*mlp\.gate$', 're:.*in_proj_(a|b|ba)$', 're:.*mtp\.fc$']
+    backend: llmcompressor
+    llmcompressor_version: 0.14.0.1
+    compressed_tensors_version: 0.19.0
+    device: cuda:0
+    verify_backend: vllm             # vllm | none
+    vllm_version: 0.32.0
+    vllm_max_model_len: 8192
+    vllm_gpu_memory_utilization: 0.85
+  gguf:
+    llama_cpp_repo: 'https://github.com/ggml-org/llama.cpp.git'
+    llama_cpp_revision: null         # null = b11889
+    build_cuda: auto                 # auto | on | off
+    cuda_architectures: auto
+    converter_transformers: null
+    intermediate_type: bf16          # bf16 | f16 | f32
+    imatrix_dataset: null
+    imatrix_chunks: null
+    preserve_multimodal: true
+    mmproj_type: f16
+    smoke_context: 4096
+    smoke_gpu_layers: auto
+    smoke_timeout_minutes: 30
+    keep_intermediate: true
+  smoke_prompts:
+    - What is the capital of France? Answer in one word.
+    - Write a Python function that returns the square of a number.
+    - What is 17 * 23?
+  smoke_max_tokens: 64
+
+execution:
+  resume: true                       # auto-resume an incomplete run with the same config hash
+  stop_on_failure: true
+  allow_partial_exports: true
+  yes: false
+  dry_run: false
+  hourly_rate_usd: null
+
+storage:
+  root: './workspace'
+  retain_intermediate: true
+  artifact_checksums: sha256
+  rehash_on_verify: true
+  link_strategy: auto                # auto | hardlink | copy
+
+logging:
+  console_level: info
+  redact_prompts: false
+  resource_sample_seconds: 15

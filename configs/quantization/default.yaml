@@ -1,0 +1,28 @@
+# Quantization profile (merged below the main config via `profiles:`).
+# Formats are verified against the pinned toolchains; unsupported names are rejected at load time.
+quantization:
+  formats: [fp8, iq4_xs, iq3_s]
+  fp8:
+    scheme: auto                     # auto = fp8_block (FP8 E4M3 weights, 128x128 block scales, dynamic activations)
+    calibration_manifest: null       # data-free schemes only in v1
+    backend: llmcompressor
+    llmcompressor_version: 0.14.0.1
+    compressed_tensors_version: 0.19.0
+    device: cuda:0
+    verify_backend: vllm             # load + generate with vLLM in stage 09 ('none' leaves inference unverified)
+    vllm_version: 0.32.0
+    vllm_max_model_len: 8192
+    vllm_gpu_memory_utilization: 0.85
+  gguf:
+    llama_cpp_revision: null         # null = verified tag b11889
+    build_cuda: auto                 # CUDA build when nvcc is present (B200: sm_100)
+    cuda_architectures: auto
+    intermediate_type: bf16
+    imatrix_dataset: null            # e.g. a local calibration .txt; required for iq3_xxs/iq2_*/iq1_*
+    imatrix_chunks: null
+    preserve_multimodal: true        # convert the vision projector (mmproj); fail rather than ship a falsely complete package
+    mmproj_type: f16
+    smoke_context: 4096
+    smoke_gpu_layers: auto
+    keep_intermediate: true
+  smoke_max_tokens: 64

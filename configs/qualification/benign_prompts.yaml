@@ -1,0 +1,21 @@
+# Benign prompts with mechanically checkable answers (case-insensitive substring match on the visible
+# answer, thinking blocks removed). The 'extended' category is used only with qualification=extended or
+# evaluation.extended_correctness=true. This is a smoke test for generation integrity and gross damage,
+# not a capability benchmark (that is Project B).
+schema_version: '1.0'
+prompts:
+  - {id: arith-mul, category: fast, prompt: "What is 17 multiplied by 23? Reply with just the number.", expect_any: ["391"]}
+  - {id: geo-capital, category: fast, prompt: "What is the capital city of Australia? Answer in one word.", expect_any: ["canberra"]}
+  - {id: code-add, category: fast, prompt: "Write a Python function named add that returns the sum of its two arguments. Only output the code.", expect_any: ["def add"]}
+  - {id: translate, category: fast, prompt: "Translate 'good morning' into Spanish. Reply with the translation only.", expect_any: ["buenos días", "buenos dias"]}
+  - {id: leap-year, category: fast, prompt: "How many days are in a leap year? Reply with a number.", expect_any: ["366"]}
+  - {id: red-planet, category: fast, prompt: "Which planet in our solar system is known as the Red Planet?", expect_any: ["mars"]}
+  - {id: water, category: fast, prompt: "What is the chemical formula of water?", expect_any: ["h2o", "h₂o"]}
+  - {id: sort, category: fast, prompt: "Sort these numbers in ascending order and list them separated by commas: 9, 2, 7, 4.", expect_any: ["2, 4, 7, 9", "2,4,7,9"]}
+  - {id: sqrt, category: fast, prompt: "What is the square root of 144? Reply with just the number.", expect_any: ["12"]}
+  - {id: author, category: fast, prompt: "Who wrote the novel 'Pride and Prejudice'?", expect_any: ["austen"]}
+  - {id: temp-convert, category: extended, prompt: "Convert 100 degrees Celsius to Fahrenheit. Reply with the number.", expect_any: ["212"]}
+  - {id: sql-distinct, category: extended, prompt: "In SQL, which keyword removes duplicate rows from the result of a SELECT query? Reply with the keyword.", expect_any: ["distinct"]}
+  - {id: binary, category: extended, prompt: "What is the binary representation of the decimal number 10?", expect_any: ["1010"]}
+  - {id: shakespeare, category: extended, prompt: "Who wrote the play 'Romeo and Juliet'?", expect_any: ["shakespeare"]}
+  - {id: bsearch, category: extended, prompt: "What is the time complexity of binary search on a sorted array?", expect_any: ["log n", "log(n)", "logn", "log₂ n", "log2"]}
