@@ -120,7 +120,7 @@ is rejected (data-free schemes only); `quantization.input=path` needs `input_pat
 | `quantization.gguf.llama_cpp_revision` | string\|null | `null` |  | null uses the verified pin b11889. |
 | `quantization.gguf.build_cuda` | string (auto\|on\|off) | `"auto"` |  |  |
 | `quantization.gguf.cuda_architectures` | string | `"auto"` |  | 'auto' derives from nvidia-smi compute capability (B200 -> 100). |
-| `quantization.gguf.converter_transformers` | string\|null | `null` |  | Optional transformers override for the converter venv (e.g. '5.17.0'). |
+| `quantization.gguf.converter_transformers` | string\|null | `"5.18.0"` |  | transformers for the converter venv. llama.cpp pins 4.57.6, which cannot load Qwen3.5 tokenizers (upstream README: upgrade for newer models). null keeps the upstream pin. |
 | `quantization.gguf.intermediate_type` | string (bf16\|f16\|f32) | `"bf16"` |  |  |
 | `quantization.gguf.imatrix_dataset` | string\|null | `null` |  | Calibration text: local file or hf://datasets/<repo>@<rev>/<file>. |
 | `quantization.gguf.imatrix_chunks` | integer\|null | `null` |  |  |

@@ -37,7 +37,7 @@ def main() -> int:
             if os.environ.get("FAKE_MMPROJ_FAIL"):
                 print("NotImplementedError: vision tower not supported", file=sys.stderr)
                 return 1
-            minimal_gguf(out.parent / ("mmproj-" + out.name), {"general.architecture": "clip", "general.type": "mmproj"})
+            minimal_gguf(out, {"general.architecture": "clip", "general.type": "mmproj"})  # real converter keeps --outfile
         else:
             minimal_gguf(
                 out,

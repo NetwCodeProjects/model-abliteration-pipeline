@@ -65,6 +65,20 @@ refined. Newest entries are appended at the end of each section.
 13. **Unit test network access**: a reinstall test triggered a real `git clone`. Fix: test uses a
     component whose installer fails offline first.
 
+14. **Real llm-compressor on Qwen3.5** (`tiny-random/qwen3.8`): `model_free_ptq` aborted on
+    `linear_attn.conv1d.weight` (shape (1280,1,4)) and `mtp.pre_fc_norm_embedding.weight` (1-D) — only
+    names ending in `norm` are skipped automatically. Fix: default ignore adds `re:.*norm.*`,
+    `re:.*conv1d.*` (as in upstream's `examples/model_free_ptq/qwen3.5_int8.py`).
+15. **Real llama.cpp converter on Qwen3.5**: `ValueError: Tokenizer class Qwen3_5Tokenizer does not exist`
+    with llama.cpp's pinned transformers 4.57.6. Fix: converter venv installs transformers 5.18.0
+    (`quantization.gguf.converter_transformers`, upstream README recommends upgrading for new models).
+16. **Thinking models in smoke tests**: real Qwen3.5-0.8B (your `E:\LLM-models` GGUF, IQ4_XS made by the
+    adapter's own argv) answered `<think> Thinking Process: …` without closing the block in 24 tokens;
+    the answer-oriented integrity check reported `empty_visible_output`. Fix: loader smoke tests judge
+    reasoning text too (`include_thinking=True`); qualification still requires a visible answer.
+17. **Toolchain note (WSL2 Ubuntu 24.04)**: host has CUDA 12.0 `nvcc` with GCC 13, an unsupported
+    pairing for CUDA 12.0, so the WSL verification used `build_cuda: off` (not attempted with CUDA).
+
 ### Real-tool verification (no GPU claims)
 
 See the section appended below for the CPU/WSL2 runs.

@@ -18,7 +18,7 @@ def convert_argv(convert_cmd: list[str], model_dir: Path, outfile: Path, outtype
 
 
 def mmproj_argv(convert_cmd: list[str], model_dir: Path, outfile: Path, outtype: str) -> list[str]:
-    # The converter prefixes the output file name with 'mmproj-'; callers locate the produced file.
+    # With --outfile the converter writes exactly that name (verified on b11889); callers pass an mmproj- name.
     return [*convert_cmd, str(model_dir), "--mmproj", "--outfile", str(outfile), "--outtype", outtype]
 
 

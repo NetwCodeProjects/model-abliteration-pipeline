@@ -24,7 +24,9 @@ shards, no model class needed — suited to new hybrid/multimodal architectures)
 
 Default `ignore` (kept in source precision): `lm_head`, `embed_tokens`, the vision tower (`visual.*`,
 `vision_tower`), MoE router gates (`mlp.gate`), Gated-DeltaNet `in_proj_a/b/ba` (not 128-divisible),
-`mtp.fc`; norms are skipped automatically by llm-compressor. This mirrors the official Qwen3.8 FP8
+`mtp.fc`, every `*norm*` tensor and the Gated-DeltaNet `conv1d` weights. llm-compressor only skips names
+*ending* in `norm` automatically; on a real Qwen3.5 checkpoint it tried to quantize the 3-D `linear_attn.conv1d.weight`
+and the 1-D `mtp.pre_fc_norm_embedding.weight` and aborted (same ignores as upstream's Qwen3.5 `model_free_ptq` example). This mirrors the official Qwen3.8 FP8
 release's choices (block 128×128, dynamic activations, vision excluded) but the files are **not**
 byte-identical to it. The recipe (`recipe_id`, scheme, scale format, ignore list, versions) is stored in
 the manifest; `calibration_revision` is `null` because no calibration data is used. Calibrated static
@@ -36,7 +38,8 @@ generates greedy answers to the smoke prompts (text only; image inputs are not t
 
 ## GGUF (llama.cpp b11889)
 
-1. `convert_hf_to_gguf.py <master> --outtype bf16` → one high-precision intermediate per master and
+1. `convert_hf_to_gguf.py <master> --outtype bf16` (converter venv uses transformers 5.18.0 instead of
+   llama.cpp's pinned 4.57.6, which cannot load `Qwen3_5Tokenizer` — verified failure) → one high-precision intermediate per master and
    converter revision (`workspace/models/gguf-intermediate/…`, reused across formats/runs).
    `Qwen3_5ForConditionalGeneration` is registered for the text model (`QWEN35`) at the pin.
 2. Vision projector: if `config.json` has `vision_config` and `preserve_multimodal: true`,

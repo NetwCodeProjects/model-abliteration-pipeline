@@ -21,6 +21,7 @@ from ..evaluation.qualification import integrity_issues
 from ..fsutil import atomic_write_bytes, atomic_write_json, file_inventory, read_json, sha256_file
 from .base import Stage, StageContext
 from .stage06_qualify import run_generation_script
+from .stage08_quantize import is_projector
 
 PRESERVED = TOKENIZER_FILES + PROCESSOR_FILES + ("generation_config.json",)
 
@@ -187,8 +188,8 @@ class VerifyExportsStage(Stage):
         config = ctx.config
         record = ctx.run.components(ctx.log_dir).get("llama_cpp")
         ggufs = sorted(art_dir.glob("*.gguf"))
-        mmproj = next((p for p in ggufs if p.name.startswith("mmproj")), None)
-        model = next((p for p in ggufs if not p.name.startswith("mmproj")), None)
+        mmproj = next((p for p in ggufs if is_projector(p)), None)
+        model = next((p for p in ggufs if not is_projector(p)), None)
         if model is None:
             return {"ran": False, "reason": "no model gguf"}
         layers = config.get("quantization.gguf.smoke_gpu_layers")
@@ -292,7 +293,9 @@ class VerifyExportsStage(Stage):
                         "has_tokenizer": "tokenizer.ggml.model" in meta,
                         "has_chat_template": "tokenizer.chat_template" in meta,
                     }
-                    if not f.startswith("mmproj") and (not meta.get("general.architecture") or "tokenizer.ggml.model" not in meta):
+                    projector = meta.get("general.architecture") == "clip" or meta.get("general.type") == "mmproj"
+                    gguf_checks[f]["role"] = "projector" if projector else "model"
+                    if not projector and (not meta.get("general.architecture") or "tokenizer.ggml.model" not in meta):
                         problems.append(f"{f}: missing architecture/tokenizer metadata")
                 item["gguf_metadata"] = gguf_checks
             if role == "master":

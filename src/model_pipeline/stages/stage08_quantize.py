@@ -35,6 +35,11 @@ from ..telemetry import utc_now
 from .base import Stage, StageContext
 
 
+def is_projector(path: Path) -> bool:
+    kv = read_metadata(path)["kv"]
+    return kv.get("general.architecture") == "clip" or kv.get("general.type") == "mmproj"
+
+
 def input_role(config) -> str:
     choice = config.get("quantization.input")
     return {"selected_master": "master", "source": "source", "path": "quant_input"}[choice]
@@ -242,9 +247,11 @@ class QuantizeStage(Stage):
             mtype = config.get("quantization.gguf.mmproj_type")
             before = set(work.glob("*.gguf"))
             try:
-                self._run_tool(ctx, LC.mmproj_argv(record.cmd("convert"), in_dir, work / f"{family}-{mtype}.gguf", mtype), "gguf-mmproj")
+                self._run_tool(ctx, LC.mmproj_argv(record.cmd("convert"), in_dir, work / f"mmproj-{family}-{mtype}.gguf", mtype), "gguf-mmproj")
                 produced = sorted(set(work.glob("*.gguf")) - before)
-                produced = [p for p in produced if p.name.startswith("mmproj")] or produced
+                # The converter keeps --outfile as given (no automatic prefix, verified on b11889):
+                # identify the projector by its GGUF metadata, not by its name.
+                produced = [p for p in produced if is_projector(p)]
                 if len(produced) != 1:
                     raise PipelineError(ExitCode.QUANTIZE, "E_MMPROJ_FAILED", f"Expected one mmproj file, found {[p.name for p in produced]}")
                 read_metadata(produced[0])
