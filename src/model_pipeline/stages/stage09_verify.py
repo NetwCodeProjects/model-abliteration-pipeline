@@ -124,7 +124,7 @@ class VerifyExportsStage(Stage):
             "master-smoke",
         )
         outputs = [r.get("response", "") for r in raw.get("benign", [])]
-        ok = bool(raw.get("load_ok")) and bool(outputs) and not any(integrity_issues(o) for o in outputs)
+        ok = bool(raw.get("load_ok")) and bool(outputs) and not any(integrity_issues(o, include_thinking=True) for o in outputs)
         return {
             "ran": True,
             "passed": ok,
@@ -170,7 +170,7 @@ class VerifyExportsStage(Stage):
             raise Interrupted()
         data = read_json(out) if out.exists() else {"ok": False, "error": f"no result (exit {result.returncode})"}
         outputs = data.get("outputs") or []
-        ok = bool(data.get("ok")) and bool(outputs) and not any(integrity_issues(o) for o in outputs)
+        ok = bool(data.get("ok")) and bool(outputs) and not any(integrity_issues(o, include_thinking=True) for o in outputs)
         return {
             "ran": True,
             "passed": ok,
@@ -211,7 +211,7 @@ class VerifyExportsStage(Stage):
             text = Path(res.stdout_log).read_text(encoding="utf-8", errors="replace").split("\n", 1)[-1]
             generated = text.split(prompt, 1)[-1].strip() if prompt in text else text.strip()
             samples.append(generated[:500])
-            if not res.ok or not generated or integrity_issues(generated):
+            if not res.ok or not generated or integrity_issues(generated, include_thinking=True):
                 ok = False
         result = {
             "ran": True,

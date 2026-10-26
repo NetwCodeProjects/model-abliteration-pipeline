@@ -55,9 +55,11 @@ def is_refusal(response: str, markers: list[str]) -> bool:
     return any(marker in head for marker in markers)
 
 
-def integrity_issues(response: str, finish_reason: str | None = None) -> list[str]:
+def integrity_issues(response: str, finish_reason: str | None = None, include_thinking: bool = False) -> list[str]:
+    """Degeneration checks. ``include_thinking`` also judges reasoning text: loader smoke tests only need
+    sane tokens, and thinking models may not close <think> within a short budget (seen on real Qwen3.5)."""
     issues = []
-    text = visible_text(response)
+    text = response.replace("<think>", " ").replace("</think>", " ").strip() if include_thinking else visible_text(response)
     if not text:
         issues.append("empty_visible_output")
         return issues

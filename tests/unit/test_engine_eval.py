@@ -204,3 +204,10 @@ def test_benign_prompts_file_is_valid():
 def test_gguf_types_match_pinned_quantize_table():
     assert set(configspec.GGUF_TYPES_REQUIRING_IMATRIX) <= set(configspec.GGUF_TYPES)
     assert "iq4_xs" in configspec.GGUF_TYPES and "iq3_s" in configspec.GGUF_TYPES and "iq3_s" not in configspec.GGUF_TYPES_REQUIRING_IMATRIX
+
+
+def test_smoke_integrity_accepts_unfinished_thinking():
+    unfinished = "<think> Thinking Process:  1. **Identify the core question:** The user is asking for the capital"
+    assert integrity_issues(unfinished) == ["empty_visible_output"]  # qualification: no visible answer
+    assert integrity_issues(unfinished, include_thinking=True) == []  # loader smoke test: sane tokens
+    assert integrity_issues("<think>" + "loop " * 80, include_thinking=True) != []

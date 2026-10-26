@@ -93,7 +93,7 @@ quantization:
   fp8:
     scheme: auto                     # auto (=fp8_block) | fp8_block | fp8_dynamic
     calibration_manifest: null
-    ignore: ['lm_head', 're:.*embed_tokens$', 're:.*visual\..*', 're:.*vision_tower.*', 're:.*mlp\.gate$', 're:.*in_proj_(a|b|ba)$', 're:.*mtp\.fc$']
+    ignore: ['lm_head', 're:.*embed_tokens$', 're:.*visual\..*', 're:.*vision_tower.*', 're:.*mlp\.gate$', 're:.*in_proj_(a|b|ba)$', 're:.*mtp\.fc$', 're:.*norm.*', 're:.*conv1d.*']
     backend: llmcompressor
     llmcompressor_version: 0.14.0.1
     compressed_tensors_version: 0.19.0
@@ -107,7 +107,7 @@ quantization:
     llama_cpp_revision: null         # null = b11889
     build_cuda: auto                 # auto | on | off
     cuda_architectures: auto
-    converter_transformers: null
+    converter_transformers: '5.18.0'   # llama.cpp pins transformers 4.57.6, too old for Qwen3.5 tokenizers
     intermediate_type: bf16          # bf16 | f16 | f32
     imatrix_dataset: null
     imatrix_chunks: null
