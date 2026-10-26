@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -278,6 +279,35 @@ def candidate_ok(path: Path) -> list[str]:
             if missing:
                 problems.append(f"index references missing shards: {missing[:3]}")
     return problems
+
+
+MODEL_LINK_NAME = "model"
+
+
+def link_model(workdir: Path, target: Path) -> dict[str, str]:
+    """Create ``workdir/model`` -> ``target`` (symlink; NTFS junction fallback on Windows)."""
+    link = workdir / MODEL_LINK_NAME
+    target = Path(target).resolve()
+    if os.path.lexists(link):
+        if link.resolve() == target:
+            return {"link": str(link), "target": str(target), "kind": "existing"}
+        if link.is_symlink():
+            os.unlink(link)
+        elif getattr(os.path, "isjunction", lambda _p: False)(link):
+            os.rmdir(link)  # removes the junction only, never the target's contents
+        else:
+            raise PipelineError(ExitCode.ENGINE, "E_MODEL_LINK", f"{link} exists and is not a link")
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        kind = "symlink"
+    except OSError:
+        if os.name != "nt":
+            raise
+        import _winapi  # noqa: PLC0415 - Windows-only stdlib module
+
+        _winapi.CreateJunction(str(target), str(link))
+        kind = "junction"
+    return {"link": str(link), "target": str(target), "kind": kind}
 
 
 def write_engine_files(workdir: Path, native: dict[str, Any], reproduce: dict[str, Any] | None) -> dict[str, Any]:

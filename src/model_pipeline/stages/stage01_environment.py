@@ -132,7 +132,10 @@ class EnvironmentStage(Stage):
         with FileLock(run.tools_dir / ".lock", "tools directory"):
             for name in sorted(components):
                 run.check_interrupt()
-                record, action = manager.ensure(name, specs[name], allow_install=config.get("environment.install_missing"), gpu_smoke=name != "llama_cpp")
+                # A CUDA matmul proves the torch build matches the GPU (guards against CPU-only wheels).
+                # Skipped only when the user explicitly chose environment.torch_backend=cpu.
+                gpu_smoke = name != "llama_cpp" and config.get("environment.torch_backend") != "cpu"
+                record, action = manager.ensure(name, specs[name], allow_install=config.get("environment.install_missing"), gpu_smoke=gpu_smoke)
                 fingerprints[name] = record.fingerprint
                 actions[name] = action
                 ctx.tool_revisions[name] = record.versions

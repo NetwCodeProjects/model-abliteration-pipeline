@@ -308,8 +308,10 @@ class ComponentManager:
         venv = self.tools_dir / "envs" / f"heretic-{fingerprint[:12]}"
         torch_plan = spec["torch"]
         python = self._make_venv(venv, spec["python_version"], torch_plan.get("source") == "system", "heretic")
+        torch_pins = locked_torch_pins(dropped)
         if torch_plan.get("source") == "pip":
-            self._run([self._uv(), "pip", "install", "--python", str(python), *self._torch_args(torch_plan), "torch", "torchvision"], "heretic-torch")
+            # Same torch/torchvision versions as Heretic's uv.lock, but the CUDA variant chosen by --torch-backend.
+            self._run([self._uv(), "pip", "install", "--python", str(python), *self._torch_args(torch_plan), *torch_pins], "heretic-torch")
         self._run(
             [self._uv(), "pip", "install", "--python", str(python), *self._torch_args(torch_plan), "-c", str(constraints), str(src)],
             "heretic-install",
@@ -321,7 +323,7 @@ class ComponentManager:
             spec=spec,
             commands={"python": [str(python)], "heretic": [str(bin_in_venv(venv, "heretic"))]},
             paths={"venv": str(venv), "src": str(src), "constraints": str(constraints), "scripts_dir": str(self.scripts_dir)},
-            versions={**versions, "heretic_commit": commit, "dropped_constraints": dropped},
+            versions={**versions, "heretic_commit": commit, "dropped_constraints": dropped, "torch_pins": torch_pins},
             validation_commands=[
                 {"argv": [str(python), str(self.scripts_dir / "env_check.py"), "--component", "heretic"], "json": True, "gpu_flag": "--gpu-smoke"},
                 {"argv": [str(bin_in_venv(venv, "heretic")), "--help"], "expect": "--model"},
@@ -433,6 +435,20 @@ def filter_constraints(text: str) -> tuple[str, list[str]]:
             continue
         kept.append(stripped)
     return "\n".join(kept) + "\n", dropped
+
+
+def locked_torch_pins(dropped: list[str]) -> list[str]:
+    """['torch==2.14.1', 'torchvision==0.29.1'] from the engine lock's non-macOS lines (local +cpu tag removed)."""
+    pins: dict[str, str] = {}
+    for line in dropped:
+        match = re.match(r"^(torch|torchvision)==([0-9][^ ;+]*)(?:\+[^ ;]+)?\s*(?:;(.*))?$", line)
+        if not match:
+            continue
+        marker = (match.group(3) or "").replace(" ", "")
+        if "sys_platform=='darwin'" in marker:
+            continue
+        pins[match.group(1)] = match.group(2)
+    return [f"{name}=={pins[name]}" if name in pins else name for name in ("torch", "torchvision")]
 
 
 def _safe(text: str) -> str:

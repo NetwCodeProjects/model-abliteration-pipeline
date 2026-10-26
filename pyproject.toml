@@ -33,8 +33,11 @@ packages = ["src/model_pipeline"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["gpu: needs a real NVIDIA GPU and provisioned tool components (run on the B200 only)"]
-addopts = "-m 'not gpu'"
+markers = [
+    "gpu: needs a real NVIDIA GPU and provisioned tool components (run on the B200 only)",
+    "realtools: real pinned tools on CPU with network (opt-in, see tests/realtools)",
+]
+addopts = "-m 'not gpu and not realtools'"
 
 [tool.ruff]
 line-length = 160

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from ..adapters import heretic as H
@@ -105,6 +106,12 @@ class AbliterateStage(Stage):
             else:
                 reproduce_doc = read_json(plan["reproduce_json"])
             native["save_directory"] = str(partial)
+            # Heretic names its study journal after settings.model; a long absolute snapshot path can exceed
+            # filename limits (found with the real engine). Point it at a short link in its private cwd.
+            engine["model_link"] = H.link_model(workdir, Path(native["model"]))
+            native["model"] = H.MODEL_LINK_NAME
+            if reproduce_doc is not None:
+                reproduce_doc["settings"]["model"] = H.MODEL_LINK_NAME
             files = H.write_engine_files(workdir, native, reproduce_doc)
             engine.update(files)
             argv = [*record.cmd("heretic")]
