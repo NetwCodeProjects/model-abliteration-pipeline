@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Project A: reproducible, configurable CLI platform for model abliteration (Heretic) and quantization (FP8/GGUF)."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0 (this repository); third-party tools keep their own licenses, see LICENSE-THIRD-PARTY.md" }
+license = { text = "Unspecified - the owner has not chosen a license yet; third-party tools keep their own licenses (LICENSE-THIRD-PARTY.md)" }
 # Control-plane dependencies only. ML stacks live in separate, pinned tool environments (stage 01).
 dependencies = [
     "pyyaml>=6.0.2,<7",

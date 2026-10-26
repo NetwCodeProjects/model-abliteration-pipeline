@@ -162,7 +162,9 @@ class ComponentManager:
             if check.get("gpu_flag") and gpu_smoke:
                 argv.append(check["gpu_flag"])
             result = self.runner.run(argv, cwd=None, env=self._env(), log_dir=self.log_dir, name=f"validate-{record.name}-{index}", timeout_seconds=600)
-            text = "\n".join(result.tail)
+            # Search the complete captured output: help texts print "usage" first, beyond the kept tail
+            # (found with the real llama-quantize).
+            text = "\n".join(Path(log).read_text(encoding="utf-8", errors="replace") for log in (result.stdout_log, result.stderr_log))
             ok = result.returncode in check.get("returncodes", [0])
             if ok and check.get("expect"):
                 ok = check["expect"].lower() in text.lower()
