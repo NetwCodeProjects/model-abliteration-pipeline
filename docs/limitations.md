@@ -5,9 +5,9 @@
 | Path | Verified how | Not verified |
 |---|---|---|
 | CLI, config, planning, receipts, resume/fork, locks, manifests, partial exports | 120+ CPU unit tests, mocked 00–10 integration tests (fake engines) | — |
-| Heretic adapter (install, introspection, native config, headless run, study export) | Real pinned Heretic on CPU with `tiny-random/qwen3.8` (same `Qwen3_5ForConditionalGeneration` architecture), see implementation log | **Qwen3.8-27B on a B200** (memory, runtime, ARA quality) |
+| Heretic adapter (install, introspection, native config, headless run, study export) | Real pinned Heretic (ARA) on CPU in WSL2/Ubuntu 24.04 with `tiny-random/qwen3.8` (same `Qwen3_5ForConditionalGeneration` architecture), full 00–10 run, see implementation log | **Qwen3.8-27B on a B200** (memory, runtime, ARA quality) |
 | llama.cpp convert/quantize/smoke | Real pinned llama.cpp build + converter on the tiny model in WSL2/Ubuntu 24.04 (see log) | CUDA build for `sm_100`; 27B conversion time/size |
-| FP8 (llm-compressor) | Real `model_free_ptq` on CPU for the tiny model (see log) | vLLM loading on a B200 (vLLM cannot run on the development host) |
+| FP8 (llm-compressor) | Real `model_free_ptq` FP8_DYNAMIC on CPU for the tiny model; FP8_BLOCK fails on its non-128-divisible dims (see log) | vLLM loading on a B200 (vLLM cannot run on the development host) |
 | Lambda Stack profile | Unit tests with simulated dpkg/apt markers | A real Lambda Stack image |
 
 Nothing in this repository claims real B200 results. `tests/gpu/` contains the commands to obtain them.
@@ -22,6 +22,7 @@ Nothing in this repository claims real B200 results. `tests/gpu/` contains the c
 - Heretic's merged export **drops `mtp.*` tensors** (multi-token-prediction head). Recorded in manifests;
   `selection.graft_missing_source_tensors: ['mtp.']` restores them verbatim (they were not abliterated,
   so speculative-decoding acceptance may differ slightly).
+- Heretic's merged save re-serializes `tokenizer_config.json`/`generation_config.json` (reported by stage 09).
 - Heretic headless mode requires Linux (prompt_toolkit console issue on Windows).
 - `trust_remote_code` models cannot run through Heretic non-interactively.
 - One Pareto trial is exported per stage-05 execution; choosing another reuses the study but re-runs the

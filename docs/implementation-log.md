@@ -79,6 +79,38 @@ refined. Newest entries are appended at the end of each section.
 17. **Toolchain note (WSL2 Ubuntu 24.04)**: host has CUDA 12.0 `nvcc` with GCC 13, an unsupported
     pairing for CUDA 12.0, so the WSL verification used `build_cuda: off` (not attempted with CUDA).
 
+18. **FP8_BLOCK on tiny dimensions**: on `tiny-random/qwen3.8` (hidden 16/64) llm-compressor 0.14.0.1
+    `FP8_BLOCK` failed with "non contiguous tensor `linear_attn.in_proj_qkv.weight`", while `FP8_DYNAMIC`
+    succeeded on the same master. The 27B model's dimensions are multiples of 128 (hidden 5120, GDN qkv
+    10240), so FP8_BLOCK is expected to work there — **unverified until the B200 run**.
+19. **Heretic re-serializes tokenizer/generation configs**: on the real run the master's
+    `tokenizer_config.json` and `generation_config.json` differ from the source (tokenizer.json is
+    JSON-equivalent, chat template identical). Stage 09 reports this as a warning; not altered.
+
 ### Real-tool verification (no GPU claims)
 
-See the section appended below for the CPU/WSL2 runs.
+Host: Windows 11 + WSL2 Ubuntu 24.04.4 (kernel 6.18, 8 cores, 15 GB RAM, GTX 1070 Ti visible but
+unused: `torch_backend: cpu`, `build_cuda: off`). No B200 was available; nothing below is a GPU result.
+
+| What | Result |
+|---|---|
+| `./main.sh --help`, `--dry-run` on Linux before bootstrap (system PyYAML) | OK; profile `ubuntu` detected ("CUDA alone does not imply Lambda Stack"); no files written |
+| Bootstrap via `python3 -m venv` + `pip --require-hashes -r requirements/control.txt` (no uv on host) | OK |
+| Stage 01 real installs: Heretic `171bb98b` (torch 2.14.1+cpu from lock pins, transformers 5.18.0), llm-compressor 0.14.0.1, llama.cpp b11889 CPU build + converter venv | OK after fixes 11, 15; validation incl. `heretic --help`, `import heretic.modifiers.ara` |
+| Resume of the failed run (`--resume … --yes`) | fp8 + heretic components **reused** (validated), only llama.cpp rebuilt; without `--yes` → exit 15 as designed |
+| Stages 02–07 with real Heretic ARA (3 trials, tiny template) on `tiny-random/qwen3.8@346bb76e` (`Qwen3_5ForConditionalGeneration`) | OK: study journal via `model` symlink, Pareto export, trial 1 exported, real transformers reload + qualification, BF16 master, 15 `mtp.*` tensors grafted back |
+| Stage 08 real exports | GGUF q8_0 + iq4_xs with mmproj (after fixes 15, 20); FP8_DYNAMIC (FP8_BLOCK see 18) |
+| Stage 09 real loader tests | llama-completion + llama-mtmd-cli image test passed for both GGUFs (`mentions_red: true`); FP8 left `inference_passed: null` (vLLM not run) |
+| Final run `20261026T091348Z-4bb489` | all stages succeeded, exit 0 |
+| Adapter argv on a real Qwen3.5-0.8B BF16 GGUF (`E:\LLM-models`) | IQ4_XS in 50 s (492 MiB), metadata intact, completion + mtmd ran (found fix 16) |
+| Windows-native real Heretic | stages 00–04 OK; stage 05 blocked by `NoConsoleScreenBufferError` (issue 9) |
+
+20. **Real converter `--mmproj` naming**: b11889 writes exactly the `--outfile` name (no `mmproj-`
+    prefix), so the projector was treated as a broken model GGUF and the image test never ran. Fix:
+    explicit `mmproj-…` name and projector detection by GGUF metadata (`general.architecture == clip`).
+
+### Still to verify on the B200 (`tests/gpu`, docs/deployment-lambda.md)
+
+CUDA torch for sm_100 via `--torch-backend auto`; Heretic ARA on Qwen3.8-27B (memory, time per trial,
+budget stop + export); held-out KL with two 27B models loaded; FP8_BLOCK on 27B + vLLM 0.32.0 load;
+llama.cpp CUDA build with `CMAKE_CUDA_ARCHITECTURES=100`; 27B GGUF conversion size/time; A4000 fit.
