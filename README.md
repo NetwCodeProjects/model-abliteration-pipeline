@@ -1,4 +1,4 @@
-# model-abliteration-pipeline (Project A)
+# model-abliteration-pipeline (Project A - Abliterate and Quantize)
 
 A reproducible, configuration-first CLI platform that takes a user-selected Hugging Face model through
 **abliteration** (with the [Heretic](https://github.com/p-e-w/heretic) engine), **lightweight
