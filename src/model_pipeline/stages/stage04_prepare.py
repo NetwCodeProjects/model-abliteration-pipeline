@@ -59,6 +59,17 @@ class PrepareEngineStage(Stage):
     def target_outputs(self, config) -> list[str]:
         return ["runs/<run>/checkpoints/heretic/engine-plan.json", "runs/<run>/checkpoints/heretic/prepared-config.toml"]
 
+    @staticmethod
+    def _lineage_seed(run) -> int:
+        """Derived seed shared by a run and its forks, so a fork can continue the parent's Heretic study."""
+        if run.parent_run_id:
+            parent = run.workspace / "runs" / run.parent_run_id / "receipts" / f"{PrepareEngineStage.id}-{PrepareEngineStage.name}.json"
+            if parent.exists():
+                seed = (read_json(parent).get("diagnostics") or {}).get("seed")
+                if seed is not None:
+                    return int(seed)
+        return H.derived_seed(run.run_id)
+
     def _introspect(self, ctx: StageContext, record) -> dict[str, Any]:
         out = ctx.run.run_dir / "checkpoints" / "heretic" / "introspection.json"
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -110,7 +121,7 @@ class PrepareEngineStage(Stage):
             raise PipelineError(ExitCode.DEPENDENCY, "E_MISSING_DEPENDENCY", "No source artifact registered (stage 02)")
         source_path = source["manifest_data"]["artifact"]["uri"]
         seed = config.get("abliteration.seed")
-        seed = int(seed) if seed is not None else H.derived_seed(run.run_id)
+        seed = int(seed) if seed is not None else self._lineage_seed(run)
         workdir = run.run_dir / "checkpoints" / "heretic"
         experiment = config.get("abliteration.experiment")
         limitations: list[str] = []

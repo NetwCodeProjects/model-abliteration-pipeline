@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,18 @@ class AbliterateStage(Stage):
         partial = final.with_name(final.name + ".partial")
         workdir.mkdir(parents=True, exist_ok=True)
         journals = sorted((workdir / "checkpoints").glob("*.jsonl")) if (workdir / "checkpoints").is_dir() else []
+        if not journals and shash and run.parent_run_id:
+            # A fork (e.g. --pareto-index N after failed gates) continues the parent's identical study
+            # instead of repeating the search: copy its journal (the parent's copy stays untouched).
+            parent_ckpt = run.workspace / "runs" / run.parent_run_id / "checkpoints" / "heretic" / f"study-{shash}" / "checkpoints"
+            parent_journals = sorted(parent_ckpt.glob("*.jsonl")) if parent_ckpt.is_dir() else []
+            if parent_journals:
+                (workdir / "checkpoints").mkdir(exist_ok=True)
+                for journal in parent_journals:
+                    shutil.copy2(journal, workdir / "checkpoints" / journal.name)
+                journals = sorted((workdir / "checkpoints").glob("*.jsonl"))
+                ctx.info(f"Continuing the Heretic study of parent run {run.parent_run_id} (study {shash})")
+                ctx.diagnostics["study_copied_from_run"] = run.parent_run_id
         engine: dict[str, Any] = {"workdir": str(workdir), "label": label, "commit": commit}
         outcome = H.EngineOutcome()
         if final.is_dir() and not H.candidate_ok(final):

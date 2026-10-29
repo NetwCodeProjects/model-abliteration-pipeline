@@ -233,3 +233,22 @@ def test_heretic_exit_zero_is_not_trusted(env, monkeypatch, mode, error):
     code, _ = env.run()
     assert code == ExitCode.ENGINE
     assert env.receipt(env.latest_run(), "05")["error"]["error_id"] == error
+
+
+def test_fork_with_other_pareto_index_continues_study_without_new_trials(env, monkeypatch):
+    env.provision()
+    monkeypatch.setenv("FAKE_KL_STEP", "0.01")
+    code, _ = env.run()
+    assert code == ExitCode.GATE
+    parent = env.latest_run()
+    trials_before = (env.counters / "heretic.log").read_text().count("trial")
+    code, out = env.run("--resume", parent.name, "--fork", "--pareto-index", "45")
+    assert code == 0, out
+    fork = env.latest_run()
+    assert fork.name != parent.name
+    assert (env.counters / "heretic.log").read_text().count("trial") == trials_before, "no new Heretic trials"
+    receipt = env.receipt(fork, "05")
+    assert receipt["diagnostics"]["study_copied_from_run"] == parent.name
+    candidate = json.loads((fork / "metrics" / "candidate.json").read_text())
+    assert candidate["summary"]["exported_trial_index"] == 5 and candidate["summary"]["optimizer_kl"] <= 0.1
+    assert env.receipt(parent, "04")["diagnostics"]["seed"] == env.receipt(fork, "04")["diagnostics"]["seed"]

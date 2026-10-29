@@ -211,3 +211,15 @@ def test_smoke_integrity_accepts_unfinished_thinking():
     assert integrity_issues(unfinished) == ["empty_visible_output"]  # qualification: no visible answer
     assert integrity_issues(unfinished, include_thinking=True) == []  # loader smoke test: sane tokens
     assert integrity_issues("<think>" + "loop " * 80, include_thinking=True) != []
+
+
+def test_word_salad_from_destroyed_model_is_flagged():
+    salad = "implimpl Imag św发发史发 św Look发史light发史发发 Look史发 Look semi史发史 semi发发史ja发发发发light发发发史发发jaaphic发 Look发发史史史light"
+    assert "dominant_token" in integrity_issues(salad)
+    normal = [
+        "The capital city of Australia is Canberra. It was purpose-built as a compromise between Sydney and Melbourne.",
+        "澳大利亚的首都是堪培拉。堪培拉位于澳大利亚首都领地，是一座经过规划的城市，于1913年被选为首都。",
+        "def add(a, b):\n    return a + b\n\nprint(add(2, 3))  # prints 5, the sum of the two arguments to the function",
+    ]
+    for text in normal:
+        assert "dominant_token" not in integrity_issues(text), text
