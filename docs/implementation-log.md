@@ -114,3 +114,13 @@ unused: `torch_backend: cpu`, `build_cuda: off`). No B200 was available; nothing
 CUDA torch for sm_100 via `--torch-backend auto`; Heretic ARA on Qwen3.8-27B (memory, time per trial,
 budget stop + export); held-out KL with two 27B models loaded; FP8_BLOCK on 27B + vLLM 0.32.0 load;
 llama.cpp CUDA build with `CMAKE_CUDA_ARCHITECTURES=100`; 27B GGUF conversion size/time; A4000 fit.
+
+## 2026-10-29 — Step 0 feasibility (next-changes specification)
+
+Real pinned Heretic, tiny model, CPU/WSL2; details and evidence in [step0-feasibility.md](step0-feasibility.md),
+reproducible with `tests/realtools/step0/run_all.sh`. Search-only (`model_action = ""`) and
+export-only (stored `n_trials = len(study.trials)`, `checkpoint_action = continue`) both add zero
+trials, including after a SIGINT budget stop and after a SIGKILL. Export-only produced the same
+bytes as a direct export. The current fork-export path adds trials to an interrupted study: 6 were added
+in check C-hazard. Only Pareto-front trials can be exported. Exporting sets `finished = true` and
+overwrites the stored budget. No pipeline code was changed.

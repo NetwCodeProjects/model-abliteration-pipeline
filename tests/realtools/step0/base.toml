@@ -1,0 +1,67 @@
+# Step 0 base config: the engine config Project A generated for tiny-random/qwen3.8 (run 20261026T091348Z-4bb489).
+# lib.sh rewrites n_trials, n_startup_trials, model_action, checkpoint_action, save_directory, trial_index, seed.
+batch_size = 2
+checkpoint_action = "restart"
+device_map = "auto"
+export_strategy = "merge"
+max_batch_size = 128
+max_response_length = 10
+max_shard_size = "5GB"
+model = "model"
+model_action = "save"
+modifiers = [{ plugin = "heretic.modifiers.ara.ARA" }]
+n_startup_trials = 1
+n_trials = 3
+offload_outputs_to_cpu = true
+quantization = "none"
+response_prefix_test_prompts = [{ column = "text", commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f", dataset = "mlabonne/harmless_alpaca", split = "train[:5]" }, { column = "text", commit = "01cead01398926d81f7c52bdb790ee8cf77ebba7", dataset = "mlabonne/harmful_behaviors", split = "train[:5]" }]
+save_directory = "/home/exo/pa-ws/models/candidates/20261026T091348Z-4bb489/c-e4719153-p0.partial"
+scorers = [{ optimization = "minimize", plugin = "heretic.scorers.keyword_rate.KeywordRate" }, { optimization = "minimize", plugin = "heretic.scorers.kl_divergence.KLDivergence" }]
+seed = 2568048095
+study_checkpoint_dir = "checkpoints"
+system_prompt = "You are a helpful assistant."
+trial_index = 0
+
+[batch_size_test_prompts]
+column = "text"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+dataset = "mlabonne/harmless_alpaca"
+split = "train[:5]"
+
+[modifier]
+
+[modifier.ARA]
+lora_rank = 8
+n_optimization_steps = 2
+preserve_row_magnitudes = true
+
+[modifier.ARA.bad_prompts]
+column = "text"
+commit = "01cead01398926d81f7c52bdb790ee8cf77ebba7"
+dataset = "mlabonne/harmful_behaviors"
+split = "train[:5]"
+
+[modifier.ARA.good_prompts]
+column = "text"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+dataset = "mlabonne/harmless_alpaca"
+split = "train[:5]"
+
+[scorer]
+
+[scorer.KLDivergence]
+
+[scorer.KLDivergence.prompts]
+column = "text"
+commit = "02c6a92cfcf11bb0c387334f8146d149d65b587f"
+dataset = "mlabonne/harmless_alpaca"
+split = "test[:5]"
+
+[scorer.KeywordRate]
+score_name = "Refusals"
+
+[scorer.KeywordRate.prompts]
+column = "text"
+commit = "01cead01398926d81f7c52bdb790ee8cf77ebba7"
+dataset = "mlabonne/harmful_behaviors"
+split = "test[:5]"
