@@ -1,8 +1,9 @@
 """Stage 07 - select_master: apply gates and promote the candidate to the immutable master.
 
-Nothing is promoted silently: failing gates stop the run unless ``allow_ungated_promotion`` is
-set, in which case the master is labelled ``ungated``. The master's precision is read from the
-saved tensors (never assumed) and its lineage points at the source artifact.
+Nothing is promoted silently: the decision table (``evaluation.promotion.decide``) yields
+``promoted:qualified``, ``promoted:research``, ``promoted:ungated`` or ``not_promoted``, recorded
+with its reason in ``selection.json`` and the master manifest. The master's precision is read from
+the saved tensors (never assumed) and its lineage points at the source artifact.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from typing import Any
 from ..artifacts.manifest import build_manifest
 from ..artifacts.safetensors_meta import dtype_summary, graft_tensors, tensor_diff, tensor_map
 from ..errors import ExitCode, PipelineError
+from ..evaluation.promotion import decide, evidence_line
 from ..evaluation.qualification import evaluate_gates
 from ..fsutil import atomic_write_json, file_inventory, link_or_copy_tree, make_read_only, read_json, remove_tree, safe_component, sha256_obj
 from .base import Stage, StageContext
@@ -48,31 +50,41 @@ class SelectMasterStage(Stage):
             qualification["metrics"] = qualification["independent"]
         selection_cfg = config.get("selection")
         gates = evaluate_gates(selection_cfg, candidate["summary"], qualification)
-        failed = [g for g in gates if g["passed"] is False]
-        unmeasured = [g for g in gates if g["passed"] is None]
-        ungated = bool(failed)
+        origin = {"kind": "pareto_position", "position": config.get("abliteration.pareto_trial_index")}
+        promotion = decide(gates, selection_cfg, run_mode=candidate["label"], origin=origin)
+        ungated = promotion["outcome"] == "promoted:ungated"
         decision = {
             "candidate": candidate["candidate_id"],
-            "gates": gates,
-            "failed": [g["gate"] for g in failed],
-            "unmeasured": [g["gate"] for g in unmeasured],
+            **promotion,
+            "failed": [g["gate"] for g in promotion["gates"] if g["required"] and g["status"] == "failed"],
+            "unmeasured": [g["gate"] for g in promotion["gates"] if g["result"] == "unmeasured"],
             "qualification_mode": qualification["mode"] if qualification else "off",
         }
-        for gate in unmeasured:
-            ctx.warn(f"Gate {gate['gate']} could not be evaluated (metric not available for {candidate['label']})")
-        if failed and not selection_cfg["allow_ungated_promotion"]:
-            decision["promoted"] = False
+        for gate in decision["unmeasured"]:
+            ctx.warn(f"Gate {gate} could not be evaluated (metric not available for {candidate['label']})")
+        for warning in promotion["warnings"]:
+            ctx.warn(warning.capitalize())
+        if not promotion["promoted"]:
             atomic_write_json(ctx.metrics_path("selection.json"), decision)
-            table = "; ".join(f"{g['gate']}={g['value']} (needs {g['op']} {g['threshold']})" for g in failed)
-            raise PipelineError(
-                ExitCode.GATE,
-                "E_GATES_FAILED",
-                f"Candidate {candidate['candidate_id']} failed promotion gates: {table}",
-                hint="No master was promoted. Adjust selection thresholds, choose another Pareto trial "
-                "(abliteration.pareto_trial_index, resumes the same study) or set selection.allow_ungated_promotion.",
-            )
-        if failed:
-            ctx.warn("Promoting despite failed gates (allow_ungated_promotion=true); master is labelled 'ungated'")
+            blocking = [g for g in promotion["gates"] if g["gate"] in promotion["triggered_gates"]]
+            table = "; ".join(f"{g['gate']}={g['value']} ({g['status']}, needs {g['op']} {g['threshold']})" for g in blocking)
+            if promotion["reason"] == "required_gate_failed":
+                error_id, what = "E_GATES_FAILED", "failed promotion gates"
+                hint = (
+                    "No master was promoted. Adjust selection thresholds, choose another Pareto trial "
+                    "(abliteration.pareto_trial_index, resumes the same study) or override specific gates with selection.override_gates."
+                )
+            else:
+                error_id, what = "E_GATES_UNMEASURED", "has required gates without evidence"
+                hint = (
+                    "No master was promoted. Measure the missing metrics, set selection.profile: research to promote with "
+                    "missing evidence (labelled research), or list the gates in selection.optional_gates (see docs/evaluation.md)."
+                )
+            raise PipelineError(ExitCode.GATE, error_id, f"Candidate {candidate['candidate_id']} {what}: {table}", hint=hint)
+        if ungated:
+            ctx.warn(f"Promoting with overridden gates ({', '.join(promotion['triggered_gates'])}); master is labelled 'ungated'")
+        elif promotion["outcome"] == "promoted:research":
+            ctx.warn(f"Promoting without evidence for {', '.join(promotion['triggered_gates'])} (research profile); master is labelled 'research'")
         source = run.registry.get("source")
         source_manifest = source["manifest_data"]
         label = candidate["label"]
@@ -138,7 +150,9 @@ class SelectMasterStage(Stage):
             extensions={
                 "label": label,
                 "ungated": ungated,
-                "gates": gates,
+                "promotion": {k: promotion[k] for k in ("outcome", "reason", "deciding_gate", "triggered_gates", "profile", "run_mode", "candidate_origin")},
+                "evidence_status": evidence_line(promotion),
+                "gates": promotion["gates"],
                 "candidate_id": candidate["candidate_id"],
                 "heretic_parameters": candidate["summary"].get("exported_parameters"),
                 "heretic_trial_index": candidate["summary"].get("exported_trial_index"),
@@ -166,7 +180,9 @@ class SelectMasterStage(Stage):
             ctx.add_output(dest / entry["relative_path"], "master_file", sha256=entry["sha256"], size=entry["size_bytes"])
         ctx.input_artifacts.append(source["artifact_id"])
         ctx.output_artifacts.append(manifest["artifact_id"])
-        ctx.diagnostics.update(master=str(dest), artifact_id=manifest["artifact_id"], ungated=ungated, precision=summary["precision"])
+        ctx.diagnostics.update(
+            master=str(dest), artifact_id=manifest["artifact_id"], ungated=ungated, promotion=promotion["outcome"], precision=summary["precision"]
+        )
         if not config.get("abliteration.save_intermediate") and semantics == "copy":
             remove_tree(candidate["path"])
             ctx.info("Removed candidate checkpoint (save_intermediate=false and the master is an independent copy)")

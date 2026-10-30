@@ -82,6 +82,9 @@ selection:
   require_reload: true
   optimizer_refusal_score: Refusals
   optimizer_kl_score: KL divergence
+  profile: qualified                 # qualified | research
+  optional_gates: []
+  override_gates: []
   allow_ungated_promotion: false
   graft_missing_source_tensors: []
 

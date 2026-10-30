@@ -554,9 +554,50 @@
           "description": "Heretic score name used as KL.",
           "default": "KL divergence"
         },
+        "profile": {
+          "type": "string",
+          "description": "qualified: every required gate must pass; research: unmeasured required gates are accepted (master labelled research).",
+          "enum": [
+            "qualified",
+            "research"
+          ],
+          "default": "qualified"
+        },
+        "optional_gates": {
+          "type": "array",
+          "description": "Gates that never change the outcome (reported as warnings); only these may be disabled with a null threshold.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "reload",
+              "integrity",
+              "optimizer_kl",
+              "benign_pass_rate",
+              "heldout_refusal_rate",
+              "optimizer_refusal_rate"
+            ]
+          },
+          "default": []
+        },
+        "override_gates": {
+          "type": "array",
+          "description": "Required gates whose failure (or absence under the qualified profile) is bypassed; the master is labelled 'ungated'.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "reload",
+              "integrity",
+              "optimizer_kl",
+              "benign_pass_rate",
+              "heldout_refusal_rate",
+              "optimizer_refusal_rate"
+            ]
+          },
+          "default": []
+        },
         "allow_ungated_promotion": {
           "type": "boolean",
-          "description": "Promote even if gates fail (master is labelled 'ungated').",
+          "description": "Shorthand for override_gates = every gate (master is labelled 'ungated').",
           "default": false
         },
         "graft_missing_source_tensors": {

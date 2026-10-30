@@ -255,6 +255,16 @@ def _cross_validate(data: dict[str, Any], *, require_model: bool) -> None:
     if quant["input"] == "selected_master" and not data["abliteration"]["enabled"] and quant["enabled"]:
         quant["input"] = "source"
 
+    sel = data["selection"]
+    for gate, key in configspec.GATE_CONFIG_KEYS.items():
+        if gate not in sel["optional_gates"] and sel[key] in (None, False):
+            raise PipelineError(
+                ExitCode.CONFIG,
+                "E_GATE_REQUIREMENT_MISSING",
+                f"selection.{key} is {sel[key]!r}, which would disable the required gate '{gate}'",
+                hint=f"Set a threshold, or add '{gate}' to selection.optional_gates to make the gate optional (see docs/evaluation.md).",
+            )
+
     if data["evaluation"]["baseline_mode"] == "local":
         raise PipelineError(
             ExitCode.UNSUPPORTED,

@@ -142,11 +142,30 @@ def test_exact_reproduction_is_blocked_without_reproduce_json(env):
     assert env.count("heretic") == 0
 
 
+def use_config(env, changes):
+    env.config_path = env.write_config(changes)
+    env.base_args[1] = str(env.config_path)
+
+
+def test_reproduction_is_not_qualified_without_optimizer_evidence(env):
+    env.provision()
+    code, out = env.run("--experiment", "reproduce", "--allow-approximate-reproduction")
+    assert code == ExitCode.GATE, out
+    run = env.latest_run()
+    assert env.receipt(run, "07")["error"]["error_id"] == "E_GATES_UNMEASURED"
+    selection = json.loads((run / "metrics" / "selection.json").read_text())
+    assert selection["outcome"] == "not_promoted" and selection["triggered_gates"] == ["optimizer_kl", "optimizer_refusal_rate"]
+    assert "master" not in env.artifacts(run)
+
+
 def test_approximate_reproduction_is_labelled(env):
+    use_config(env, {"selection": {"profile": "research"}})
     env.provision()
     code, out = env.run("--experiment", "reproduce", "--allow-approximate-reproduction")
     assert code == 0, out
     master = manifests(env, env.latest_run())["master"]
+    assert master["extensions"]["promotion"]["outcome"] == "promoted:research"
+    assert master["extensions"]["promotion"]["run_mode"] == "approximate_reproduction"
     assert master["extensions"]["label"] == "approximate_reproduction"
     assert "approximate_reproduction" in master["transformation"]["method"]
     assert any("not published" in item or "unknown" in item for item in master["extensions"]["limitations"])
@@ -163,6 +182,7 @@ def test_exact_reproduction_attempt_patches_only_control_flow(env):
     }
     (env.reference / "reproduce").mkdir()
     (env.reference / "reproduce" / "reproduce.json").write_text(json.dumps(reproduce))
+    use_config(env, {"selection": {"optional_gates": ["optimizer_kl", "optimizer_refusal_rate"]}})
     env.provision()
     code, out = env.run("--experiment", "reproduce")
     assert code == 0, out
@@ -172,6 +192,37 @@ def test_exact_reproduction_attempt_patches_only_control_flow(env):
     patched = json.loads(Path(plan["reproduce_json"]).read_text())
     assert patched["settings"]["model_action"] == "save" and patched["settings"]["upload_repo_id"] is None
     assert patched["settings"]["seed"] == 7 and patched["parameters"] == {"start_layer_index": 1}
+    promotion = manifests(env, run)["master"]["extensions"]["promotion"]
+    assert promotion["outcome"] == "promoted:qualified", "independent evidence only, recorded via optional_gates"
+
+
+def test_qualification_off_blocks_qualified_promotion_and_research_labels_it(env):
+    env.provision()
+    code, out = env.run("--qualification", "off")
+    assert code == ExitCode.GATE, out
+    run = env.latest_run()
+    assert env.receipt(run, "07")["error"]["error_id"] == "E_GATES_UNMEASURED"
+    use_config(env, {"selection": {"profile": "research"}})
+    code, out = env.run("--qualification", "off", "--new-run")
+    assert code == 0, out
+    run = env.latest_run()
+    selection = json.loads((run / "metrics" / "selection.json").read_text())
+    assert selection["outcome"] == "promoted:research" and selection["deciding_gate"] == "reload"
+    report = (run / "reports" / "report.md").read_text()
+    assert "**master**: promoted:research" in report and "Project B" in report
+    assert "export of" in report and "not independently qualified" in report
+
+
+def test_per_gate_override_promotes_ungated(env, monkeypatch):
+    use_config(env, {"selection": {"override_gates": ["optimizer_kl"]}})
+    env.provision()
+    monkeypatch.setenv("FAKE_KL_STEP", "0.01")
+    code, out = env.run("--quantizations", "fp8")
+    assert code == 0, out
+    master = manifests(env, env.latest_run())["master"]
+    assert master["extensions"]["ungated"] is True
+    kl = next(g for g in master["extensions"]["gates"] if g["gate"] == "optimizer_kl")
+    assert kl["status"] == "bypassed_by_override" and kl["override_key"] == "selection.override_gates"
 
 
 def test_setup_only_runs_stage_00_and_01(env):
@@ -203,8 +254,7 @@ def test_from_stage_without_dependency_receipts_fails_fast(env):
 
 
 def test_graft_restores_missing_source_tensors(env):
-    env.config_path = env.write_config({"selection": {"graft_missing_source_tensors": ["mtp."]}})
-    env.base_args[1] = str(env.config_path)
+    use_config(env, {"selection": {"graft_missing_source_tensors": ["mtp."]}})
     env.provision()
     code, out = env.run("--quantizations", "fp8")
     assert code == 0, out

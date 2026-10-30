@@ -91,6 +91,18 @@ DEFAULT_REFUSAL_MARKERS = [
 ]
 
 
+# Promotion gates in canonical order (docs/evaluation.md) and the selection key that configures each.
+GATE_ORDER = ("reload", "integrity", "optimizer_kl", "benign_pass_rate", "heldout_refusal_rate", "optimizer_refusal_rate")
+GATE_CONFIG_KEYS = {
+    "reload": "require_reload",
+    "integrity": "require_integrity",
+    "optimizer_kl": "max_optimizer_kl",
+    "benign_pass_rate": "min_benign_pass_rate",
+    "heldout_refusal_rate": "max_heldout_refusal_rate",
+    "optimizer_refusal_rate": "max_optimizer_refusal_rate",
+}
+
+
 @dataclass
 class F:
     """A leaf field."""
@@ -275,7 +287,25 @@ SPEC = S(
                 "require_reload": F("boolean", True),
                 "optimizer_refusal_score": F("string", "Refusals", description="Heretic score name used as refusal rate."),
                 "optimizer_kl_score": F("string", "KL divergence", description="Heretic score name used as KL."),
-                "allow_ungated_promotion": F("boolean", False, description="Promote even if gates fail (master is labelled 'ungated')."),
+                "profile": F(
+                    "string",
+                    "qualified",
+                    enum=("qualified", "research"),
+                    description="qualified: every required gate must pass; research: unmeasured required gates are accepted (master labelled research).",
+                ),
+                "optional_gates": F(
+                    "array",
+                    [],
+                    items=F("string", enum=GATE_ORDER),
+                    description="Gates that never change the outcome (reported as warnings); only these may be disabled with a null threshold.",
+                ),
+                "override_gates": F(
+                    "array",
+                    [],
+                    items=F("string", enum=GATE_ORDER),
+                    description="Required gates whose failure (or absence under the qualified profile) is bypassed; the master is labelled 'ungated'.",
+                ),
+                "allow_ungated_promotion": F("boolean", False, description="Shorthand for override_gates = every gate (master is labelled 'ungated')."),
                 "graft_missing_source_tensors": F(
                     "array", [], items=F("string"), description="Tensor-name prefixes absent from the candidate to copy verbatim from the source (e.g. 'mtp.')."
                 ),

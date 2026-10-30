@@ -51,7 +51,12 @@ def collect(run: Run) -> dict[str, Any]:
                 "inference": manifest["inference"],
                 "evaluation": manifest["evaluation"],
                 "label": (manifest.get("extensions") or {}).get("label"),
+                "promotion": (manifest.get("extensions") or {}).get("promotion"),
+                "evidence_status": (manifest.get("extensions") or {}).get("evidence_status"),
             }
+    for art in artifacts.values():
+        if not art["evidence_status"]:
+            art["evidence_status"] = derived_evidence(art, artifacts)
     metrics_dir = run.run_dir / "metrics"
     return {
         "schema_version": "1.0",
@@ -91,6 +96,16 @@ def collect(run: Run) -> dict[str, Any]:
             else "set execution.hourly_rate_usd for a cost estimate",
         },
     }
+
+
+def derived_evidence(art: dict[str, Any], artifacts: dict[str, Any]) -> str:
+    """Evidence status for artifacts that are not promoted masters (source, exports)."""
+    loader = {True: "loader test passed", False: "loader test FAILED", None: "loader test not run"}[art["validation"]["inference_passed"]]
+    parent = next((a for a in artifacts.values() if a["artifact_id"] == art["parent_artifact_id"]), None)
+    if parent is None:
+        return f"not promoted or qualified by this run; {loader}"
+    origin = (parent.get("promotion") or {}).get("outcome") or "not promoted (source model)"
+    return f"export of {parent['artifact_id'][:16]} ({origin}); this export: {loader}, not independently qualified"
 
 
 def usage_examples(artifacts: dict[str, Any]) -> list[str]:
@@ -160,6 +175,9 @@ def render_markdown(summary: dict[str, Any], final: bool) -> str:
             f"| {role} | `{art['artifact_id']}` | {art['precision']} | {human_bytes(art['size_bytes'])} | {'ok' if v['integrity_passed'] else 'FAILED'} | "
             f"{loader} | {', '.join(v['modalities_tested']) or '-'} | {art['evaluation']['metrics_provenance']} |"
         )
+    out += ["", "### Evidence status", ""]
+    for role, art in sorted(summary["artifacts"].items()):
+        out.append(f"- **{role}**: {art.get('evidence_status') or '-'}")
     cand = summary.get("candidate")
     if cand:
         s = cand["summary"]
@@ -181,9 +199,15 @@ def render_markdown(summary: dict[str, Any], final: bool) -> str:
             out.append(f"- Caveat: {c}")
     sel = summary.get("selection")
     if sel:
-        out += ["", "## Selection gates", "", "| Gate | Value | Threshold | Passed | Provenance |", "|---|---|---|---|---|"]
+        out += ["", "## Selection gates", ""]
+        if sel.get("outcome"):
+            out += [f"- Outcome: **{sel['outcome']}** (reason `{sel['reason']}`, deciding gate `{sel.get('deciding_gate')}`, profile {sel['profile']})", ""]
+        out += ["| Gate | Required | Value | Threshold | Status | Provenance |", "|---|---|---|---|---|---|"]
         for g in sel["gates"]:
-            out.append(f"| {g['gate']} | {g['value']} | {g['op']} {g['threshold']} | {g['passed']} | {g['provenance']} |")
+            status = g.get("status") or g.get("result") or g.get("passed")
+            if g.get("override_key"):
+                status = f"{status} ({g['override_key']})"
+            out.append(f"| {g['gate']} | {g.get('required', True)} | {g['value']} | {g['op']} {g['threshold']} | {status} | {g['provenance']} |")
     pub = summary.get("published_baselines")
     if pub:
         out += ["", "## Published baselines (not measured locally)", ""]

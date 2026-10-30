@@ -25,7 +25,7 @@ Stage IDs and names are stable public contracts. Every executed stage writes
 | 04 | prepare_engine | 01 (heretic), 02 | template TOML, reproduce input | `checkpoints/heretic/engine-plan.json`, `prepared-config.toml` | installed Heretic introspected; native keys ⊆ installed Settings; modifier importable; reproduction label decided or blocked |
 | 05 | abliterate | 04 | engine plan | `models/candidates/<run>/<cand>/`, `metrics/candidate.json`, `metrics/heretic_study.json` | checkpoint written (config.json + all indexed shards); exit code not trusted |
 | 06 | qualify | 05 | candidate | `metrics/qualification.json` | reload + generations completed (gates are applied in 07) |
-| 07 | select_master | 05, 06 | gates | `exports/<precision>/<name>/` + manifest, `metrics/selection.json` | all evaluable gates pass (or explicit `allow_ungated_promotion`) |
+| 07 | select_master | 05, 06 | gates | `exports/<precision>/<name>/` + manifest, `metrics/selection.json` | decision table outcome is `promoted:*` (qualified, research or ungated; docs/evaluation.md) |
 | 08 | quantize | 01 (fp8/llama_cpp), 07 *or* 02 | master/source/path | `exports/fp8/…`, `exports/gguf/…` + manifests, `receipts/08-quantize/<fmt>.json` | each format succeeds independently; input fingerprint unchanged |
 | 09 | verify_exports | 01, 02, 07?, 08? | registered artifacts | `metrics/verification.json`, updated manifests | re-hash matches; loader smoke tests (failures → partial) |
 | 10 | report_export | 09 | everything | `reports/{report.md,run-summary.json,manifest-index.json}` | — |

@@ -124,3 +124,21 @@ trials, including after a SIGINT budget stop and after a SIGKILL. Export-only pr
 bytes as a direct export. The current fork-export path adds trials to an interrupted study: 6 were added
 in check C-hazard. Only Pareto-front trials can be exported. Exporting sets `finished = true` and
 overwrites the stored budget. No pipeline code was changed.
+
+## 2026-10-29 — Step 1: promotion decision table
+
+- `evaluation/promotion.py::decide`: a pure function. Required gates are combined so that the weakest claim
+  wins: failed, then bypassed_by_override, then unmeasured (research or not_promoted), then qualified.
+  Ties use the canonical gate order. Outcomes: `promoted:qualified`, `promoted:research`,
+  `promoted:ungated`, `not_promoted`.
+- `evaluate_gates` now reports all six gates. It used to drop the independent gates when there was no
+  qualification, so `qualification: off` could promote with only a warning.
+- New config keys: `selection.profile`, `optional_gates`, `override_gates`.
+  `allow_ungated_promotion` is kept as the "every gate" shorthand.
+- New error IDs: `E_GATE_REQUIREMENT_MISSING` (exit 3), `E_GATES_UNMEASURED` (exit 9).
+- **Behavior change:** reproduction runs and `qualification: off` no longer promote under the default
+  `qualified` profile. They need `profile: research` (labelled), or optional optimizer gates for
+  reproduction. A null threshold on a required gate is now a config error, where it used to disable
+  the gate silently.
+- The report shows an evidence-status line for each artifact. The master manifest carries
+  `extensions.promotion` and `extensions.evidence_status`; both are additive.

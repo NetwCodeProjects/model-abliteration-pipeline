@@ -14,6 +14,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from .. import configspec
 from ..errors import ExitCode, PipelineError
 
 THINK_RE = re.compile(r"<think>.*?</think>", re.S | re.I)
@@ -123,45 +124,38 @@ def score_results(raw: dict[str, Any], markers: list[str]) -> dict[str, Any]:
 
 
 def evaluate_gates(selection: dict[str, Any], optimizer: dict[str, Any] | None, qualification: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Each gate: value, threshold, passed (True/False) or None when the metric was not measured."""
-    gates = []
+    """Every gate in canonical order with its own result: passed, failed, unmeasured or disabled.
 
-    def gate(name: str, value: Any, threshold: Any, op: str, provenance: str) -> None:
-        if threshold is None:
-            return
-        if value is None:
-            passed = None
-        else:
-            passed = value <= threshold if op == "<=" else value >= threshold
-        gates.append({"gate": name, "value": value, "threshold": threshold, "op": op, "passed": passed, "provenance": provenance})
-
+    ``passed`` mirrors the result (True/False, None otherwise). Combining the results into a
+    promotion outcome is ``evaluation.promotion.decide``.
+    """
     opt = optimizer or {}
-    gate("optimizer_refusal_rate", opt.get("optimizer_refusal_rate"), selection.get("max_optimizer_refusal_rate"), "<=", "heretic_optimizer")
-    gate("optimizer_kl", opt.get("optimizer_kl"), selection.get("max_optimizer_kl"), "<=", "heretic_optimizer")
     q = (qualification or {}).get("metrics") if qualification else None
-    if q is not None:
-        gate("heldout_refusal_rate", q.get("heldout_refusal_rate"), selection.get("max_heldout_refusal_rate"), "<=", "independent_qualification")
-        gate("benign_pass_rate", q.get("benign_pass_rate"), selection.get("min_benign_pass_rate"), ">=", "independent_qualification")
-        if selection.get("require_integrity"):
-            gates.append(
-                {
-                    "gate": "integrity",
-                    "value": q.get("integrity_passed"),
-                    "threshold": True,
-                    "op": "==",
-                    "passed": bool(q.get("integrity_passed")),
-                    "provenance": "independent_qualification",
-                }
-            )
-        if selection.get("require_reload"):
-            gates.append(
-                {
-                    "gate": "reload",
-                    "value": q.get("reload_ok"),
-                    "threshold": True,
-                    "op": "==",
-                    "passed": bool(q.get("reload_ok")),
-                    "provenance": "independent_qualification",
-                }
-            )
+    measured = q or {}
+    specs = {
+        "reload": (measured.get("reload_ok") if q is not None else None, True if selection.get("require_reload") else None, "==", "independent_qualification"),
+        "integrity": (
+            measured.get("integrity_passed") if q is not None else None,
+            True if selection.get("require_integrity") else None,
+            "==",
+            "independent_qualification",
+        ),
+        "optimizer_kl": (opt.get("optimizer_kl"), selection.get("max_optimizer_kl"), "<=", "heretic_optimizer"),
+        "benign_pass_rate": (measured.get("benign_pass_rate"), selection.get("min_benign_pass_rate"), ">=", "independent_qualification"),
+        "heldout_refusal_rate": (measured.get("heldout_refusal_rate"), selection.get("max_heldout_refusal_rate"), "<=", "independent_qualification"),
+        "optimizer_refusal_rate": (opt.get("optimizer_refusal_rate"), selection.get("max_optimizer_refusal_rate"), "<=", "heretic_optimizer"),
+    }
+    gates = []
+    for name in configspec.GATE_ORDER:
+        value, threshold, op, provenance = specs[name]
+        if threshold is None:
+            result = "disabled"
+        elif value is None:
+            result = "unmeasured"
+        elif op == "==":
+            result = "passed" if bool(value) == threshold else "failed"
+        else:
+            result = "passed" if (value <= threshold if op == "<=" else value >= threshold) else "failed"
+        passed = {"passed": True, "failed": False}.get(result)
+        gates.append({"gate": name, "value": value, "threshold": threshold, "op": op, "result": result, "passed": passed, "provenance": provenance})
     return gates

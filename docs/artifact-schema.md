@@ -30,7 +30,7 @@ against `schemas/artifact.schema.json` (JSON Schema 2020-12) before it is writte
   "inference": {"backend": "transformers", "backend_revision": "transformers 5.18.0", "tested_context": 412},
   "validation": {"integrity_passed": true, "inference_passed": true, "modalities_tested": ["text"]},
   "evaluation": {"qualification_run_id": "20261026T120000Z-a1b2c3", "metrics_provenance": "fast-qualification"},
-  "extensions": {"label": "optimize", "ungated": false, "gates": [], "heretic_parameters": {}, "tensor_diff_vs_source": {}, "storage_semantics": "hardlink"}
+  "extensions": {"label": "optimize", "ungated": false, "promotion": {"outcome": "promoted:qualified", "reason": "all_required_gates_passed"}, "evidence_status": "…", "gates": [], "heretic_parameters": {}, "tensor_diff_vs_source": {}, "storage_semantics": "hardlink"}
 }
 ```
 
@@ -53,7 +53,7 @@ against `schemas/artifact.schema.json` (JSON Schema 2020-12) before it is writte
 | `validation.inference_passed` | `true`/`false` from a real loader test, **`null` = not tested** |
 | `validation.modalities_tested` | only modalities exercised by a real test (`["text","image"]` only after an mmproj test) |
 | `evaluation.metrics_provenance` | `not-evaluated`, `integrity-only`, `optimizer-only`, `fast-qualification`, `extended-qualification` |
-| `extensions` | optional details; consumers must tolerate unknown keys here |
+| `extensions` | optional details; consumers must tolerate unknown keys here. Masters carry `promotion` (outcome, reason, deciding gate, triggered gates, profile, run mode, candidate origin; see docs/evaluation.md), `evidence_status` and per-gate `gates` statuses (additive, no schema version change) |
 
 ## Commitments
 

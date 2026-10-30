@@ -22,7 +22,9 @@ Cross-field rules: `model.url` xor `model.local_path` (one required unless `--se
 `model.revision` only with `url`; formats must be `fp8` or a verified GGUF type; `fp8.calibration_manifest`
 is rejected (data-free schemes only); `quantization.input=path` needs `input_path`; abliteration disabled ⇒
 `input` becomes `source`; `baseline_mode=local` is unsupported in v1; `experiment=reproduce` needs
-`reproduce.source` or `reproduce.reference_repo`; `torch_source=system` only with `lambda-stack`.
+`reproduce.source` or `reproduce.reference_repo`; `torch_source=system` only with `lambda-stack`; a required
+promotion gate may not have a `null` threshold (or `require_*: false`) — list it in `selection.optional_gates`
+first (`E_GATE_REQUIREMENT_MISSING`).
 
 ## Engine-specific vs platform options
 
@@ -99,7 +101,10 @@ is rejected (data-free schemes only); `quantization.input=path` needs `input_pat
 | `selection.require_reload` | boolean | `true` |  |  |
 | `selection.optimizer_refusal_score` | string | `"Refusals"` |  | Heretic score name used as refusal rate. |
 | `selection.optimizer_kl_score` | string | `"KL divergence"` |  | Heretic score name used as KL. |
-| `selection.allow_ungated_promotion` | boolean | `false` |  | Promote even if gates fail (master is labelled 'ungated'). |
+| `selection.profile` | string (qualified\|research) | `"qualified"` |  | qualified: every required gate must pass; research: unmeasured required gates are accepted (master labelled research). |
+| `selection.optional_gates` | array | `[]` |  | Gates that never change the outcome (reported as warnings); only these may be disabled with a null threshold. |
+| `selection.override_gates` | array | `[]` |  | Required gates whose failure (or absence under the qualified profile) is bypassed; the master is labelled 'ungated'. |
+| `selection.allow_ungated_promotion` | boolean | `false` |  | Shorthand for override_gates = every gate (master is labelled 'ungated'). |
 | `selection.graft_missing_source_tensors` | array | `[]` |  | Tensor-name prefixes absent from the candidate to copy verbatim from the source (e.g. 'mtp.'). |
 | `quantization.enabled` | boolean | `true` |  |  |
 | `quantization.input` | string (selected_master\|source\|path) | `"selected_master"` |  |  |

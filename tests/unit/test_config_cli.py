@@ -92,12 +92,20 @@ def test_unknown_and_mistyped_keys_are_rejected(tmp_path):
         ({"model": {"url": "a/b"}, "evaluation": {"baseline_mode": "local"}}, "E_LOCAL_BASELINES_UNSUPPORTED"),
         ({"model": {"url": "a/b"}, "abliteration": {"experiment": "reproduce"}}, "E_REPRODUCE_SOURCE_MISSING"),
         ({"model": {"url": "https://evil.example.com/a/b"}}, "E_MODEL_REF_INVALID"),
+        ({"model": {"url": "a/b"}, "selection": {"max_optimizer_kl": None}}, "E_GATE_REQUIREMENT_MISSING"),
+        ({"model": {"url": "a/b"}, "selection": {"require_integrity": False}}, "E_GATE_REQUIREMENT_MISSING"),
+        ({"model": {"url": "a/b"}, "selection": {"optional_gates": ["no_such_gate"]}}, "E_CONFIG_INVALID"),
     ],
 )
 def test_cross_field_validation(tmp_path, data, error_id):
     with pytest.raises(PipelineError) as err:
         build_config(write(tmp_path, data))
     assert err.value.error_id == error_id
+
+
+def test_only_optional_gates_may_be_disabled(tmp_path):
+    cfg = build_config(write(tmp_path, {"model": {"url": "a/b"}, "selection": {"max_optimizer_kl": None, "optional_gates": ["optimizer_kl"]}}))
+    assert cfg.get("selection.max_optimizer_kl") is None and cfg.get("selection.profile") == "qualified"
 
 
 def test_formats_are_normalized_and_deduplicated(tmp_path):

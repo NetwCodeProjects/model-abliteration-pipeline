@@ -69,7 +69,10 @@ selection:
   min_benign_pass_rate: 0.7
   require_integrity: true
   require_reload: true
-  allow_ungated_promotion: false
+  profile: qualified                 # qualified | research (accepts missing evidence, labelled); docs/evaluation.md
+  optional_gates: []                 # only optional gates may be disabled with null; they never block promotion
+  override_gates: []                 # bypass these required gates; the master is labelled 'ungated'
+  allow_ungated_promotion: false     # shorthand for override_gates = every gate
   # Heretic's merged export drops the 15 'mtp.*' tensors (multi-token-prediction draft head) of this
   # model. Add 'mtp.' to copy them verbatim from the source (they were not abliterated).
   graft_missing_source_tensors: []

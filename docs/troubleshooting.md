@@ -22,7 +22,9 @@ Every failure prints `ERROR [E_ID] message` + `hint:` and is stored in the stage
 | `E_HERETIC_BUDGET_EXHAUSTED` | budget ended before the first trial | raise `--max-runtime-minutes`; `--resume` continues the same study |
 | `E_HERETIC_NO_OUTPUT` | crash/OOM, remote-code prompt, unsupported architecture | inspect the Heretic log tail in the hint; try `bnb_4bit` in the template only if memory-bound (and accept the provenance note) |
 | `E_EXACT_REPRODUCTION_UNAVAILABLE` (14) | no reproduce.json for the reference | `--allow-approximate-reproduction` (labelled) or `--experiment optimize` |
-| `E_GATES_FAILED` (9) | candidate failed thresholds | inspect `metrics/selection.json`; choose another Pareto trial with `--resume RUN --fork --pareto-index N` (study is reused), or adjust thresholds |
+| `E_GATES_FAILED` (9) | candidate failed thresholds | inspect `metrics/selection.json`; choose another Pareto trial with `--resume RUN --fork --pareto-index N` (study is reused), adjust thresholds, or override named gates (`selection.override_gates`, labelled `ungated`) |
+| `E_GATES_UNMEASURED` (9) | a required gate has no evidence (qualification off/failed, reproduction without optimizer metrics) | measure it, use `selection.profile: research` (labelled), or list the gate in `selection.optional_gates`; see docs/evaluation.md |
+| `E_GATE_REQUIREMENT_MISSING` (3) | a required gate's threshold is `null` (or `require_*: false`) | set a threshold, or list the gate in `selection.optional_gates` |
 | `E_IMATRIX_REQUIRED` | iq1/iq2/iq3_xxs/q2_k_s without calibration data | set `quantization.gguf.imatrix_dataset` |
 | `E_MMPROJ_FAILED` | vision projector not convertible | `preserve_multimodal: false` for an explicit text-only GGUF |
 | Exit 20 | some exports failed or failed their loader test | see `receipts/08-quantize/*.json` and `metrics/verification.json`; fix and `--resume` (finished formats are reused) |
