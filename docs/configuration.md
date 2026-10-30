@@ -15,6 +15,11 @@ not model live in the native template (`abliteration.heretic_config`, default
 - **Paths:** relative paths in config files resolve against the repository root; CLI paths against the
   current directory.
 - **Profiles:** `profiles: [file.yaml, …]` (relative to the config file) are merged *below* the file.
+  Model profiles under `configs/profiles/` carry architecture-specific findings so that the built-in
+  defaults stay neutral. `qwen3_5.yaml` holds the FP8 exclusions and the converter's transformers pin, and its header
+  lists what was exercised and what is unverified. Each profile's path and sha256 are stored in
+  `runs/<run>/configs/resolved-config.json` and shown in the report. Stage keys depend on the
+  *effective* values, so editing only a comment in a profile does not invalidate finished stages.
 - **Precedence:** CLI > YAML > profiles > defaults (new runs); stored config + CLI (resume).
 - **Operational keys** (marked below) never change fingerprints and may be changed on resume.
 
@@ -112,7 +117,7 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `quantization.formats` | array | `["fp8", "iq4_xs", "iq3_s"]` |  |  |
 | `quantization.fp8.scheme` | string (auto\|fp8_block\|fp8_dynamic) | `"auto"` |  |  |
 | `quantization.fp8.calibration_manifest` | string\|null | `null` |  | Not used by the data-free schemes offered in v1; setting it is an error. |
-| `quantization.fp8.ignore` | array | `["lm_head", "re:.*embed_tokens$", "re:.*visual\\..*", "re...` |  |  |
+| `quantization.fp8.ignore` | array | `["lm_head", "re:.*embed_tokens$", "re:.*visual\\..*", "re...` |  | Architecture-specific additions come from model profiles (configs/profiles/). |
 | `quantization.fp8.backend` | string (llmcompressor) | `"llmcompressor"` |  |  |
 | `quantization.fp8.llmcompressor_version` | string | `"0.14.0.1"` |  |  |
 | `quantization.fp8.compressed_tensors_version` | string | `"0.19.0"` |  |  |
@@ -125,7 +130,7 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `quantization.gguf.llama_cpp_revision` | string\|null | `null` |  | null uses the verified pin b11889. |
 | `quantization.gguf.build_cuda` | string (auto\|on\|off) | `"auto"` |  |  |
 | `quantization.gguf.cuda_architectures` | string | `"auto"` |  | 'auto' derives from nvidia-smi compute capability (B200 -> 100). |
-| `quantization.gguf.converter_transformers` | string\|null | `"5.18.0"` |  | transformers for the converter venv. llama.cpp pins 4.57.6, which cannot load Qwen3.5 tokenizers (upstream README: upgrade for newer models). null keeps the upstream pin. |
+| `quantization.gguf.converter_transformers` | string\|null | `null` |  | transformers version for the converter venv; null keeps llama.cpp's own pin. Newer architectures may need an upgrade (e.g. configs/profiles/qwen3_5.yaml). |
 | `quantization.gguf.intermediate_type` | string (bf16\|f16\|f32) | `"bf16"` |  |  |
 | `quantization.gguf.imatrix_dataset` | string\|null | `null` |  | Calibration text: local file or hf://datasets/<repo>@<rev>/<file>. |
 | `quantization.gguf.imatrix_chunks` | integer\|null | `null` |  |  |

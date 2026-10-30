@@ -23,8 +23,9 @@ shards, no model class needed — suited to new hybrid/multimodal architectures)
 | `fp8_dynamic` | `FP8_DYNAMIC` | FP8 E4M3, static, per-output-channel scales | FP8 E4M3, dynamic, per token |
 
 Default `ignore` (kept in source precision): `lm_head`, `embed_tokens`, the vision tower (`visual.*`,
-`vision_tower`), MoE router gates (`mlp.gate`), Gated-DeltaNet `in_proj_a/b/ba` (not 128-divisible),
-`mtp.fc`, every `*norm*` tensor and the Gated-DeltaNet `conv1d` weights. llm-compressor only skips names
+`vision_tower`) and MoE router gates (`mlp.gate`). The Qwen3.5 profile (`configs/profiles/qwen3_5.yaml`)
+adds the Gated-DeltaNet `in_proj_a/b/ba` (not 128-divisible), `mtp.fc`, every `*norm*` tensor and the
+Gated-DeltaNet `conv1d` weights. llm-compressor only skips names
 *ending* in `norm` automatically; on a real Qwen3.5 checkpoint it tried to quantize the 3-D `linear_attn.conv1d.weight`
 and the 1-D `mtp.pre_fc_norm_embedding.weight` and aborted (same ignores as upstream's Qwen3.5 `model_free_ptq` example). This mirrors the official Qwen3.8 FP8
 release's choices (block 128×128, dynamic activations, vision excluded) but the files are **not**

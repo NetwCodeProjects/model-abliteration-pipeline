@@ -244,6 +244,9 @@ def test_through_then_resume(env):
     code, out = env.run("--resume", run.name)
     assert code == 0, out
     assert env.hub.calls.count(("snapshot", "Qwen/Qwen3.8-27B")) == snapshot_calls, "verified source is not downloaded again"
+    stored = json.loads((run / "configs" / "resolved-config.json").read_text())
+    assert any(p["path"].endswith("qwen3_5.yaml") and len(p["sha256"]) == 64 for p in stored["profiles"])
+    assert "- Profile: `" in (run / "reports" / "report.md").read_text(), "profile hashes survive resume into the report"
 
 
 def test_from_stage_without_dependency_receipts_fails_fast(env):

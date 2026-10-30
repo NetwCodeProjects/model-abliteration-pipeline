@@ -10,6 +10,7 @@
 schema_version: '1.0'
 profiles:
   - ../configs/quantization/default.yaml
+  - ../configs/profiles/qwen3_5.yaml
 model:
   url: Qwen/Qwen3.8-27B
   revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0

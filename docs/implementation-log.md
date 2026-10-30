@@ -142,3 +142,17 @@ overwrites the stored budget. No pipeline code was changed.
   the gate silently.
 - The report shows an evidence-status line for each artifact. The master manifest carries
   `extensions.promotion` and `extensions.evidence_status`; both are additive.
+
+## 2026-10-29 — Step 4: model profile for Qwen3.5
+
+- `configs/profiles/qwen3_5.yaml` now holds the Qwen3.5 FP8 exclusions (`in_proj_a/b/ba`, `mtp.fc`, `*norm*`,
+  `conv1d`) and the converter's `transformers==5.18.0`. Its header records the `mtp.` graft recommendation,
+  the mmproj expectation, and what was exercised or is unverified.
+- Built-in defaults are neutral: the FP8 ignore list keeps only `lm_head`, embeddings, the vision tower
+  and router gates, and `converter_transformers` is `null` (llama.cpp's own pin).
+- `configs/pipeline.yaml`, `examples/qwen-b200.yaml` and `examples/ubuntu-quantize-only.yaml` reference
+  the profile. Tests check that their effective settings are unchanged.
+- Each profile's path and sha256 are stored in `resolved-config.json`, kept across resume, and shown in
+  the report. **Deviation from the specification:** the profile file hash is *not* part of stage keys.
+  Stage keys already depend on the effective merged values, and keying on the file would invalidate a
+  finished 27B study after a comment-only edit. Assessment records (Step 5) will carry the profile hashes.

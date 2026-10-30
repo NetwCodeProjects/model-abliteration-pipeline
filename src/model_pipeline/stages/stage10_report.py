@@ -65,6 +65,7 @@ def collect(run: Run) -> dict[str, Any]:
         "run_id": run.run_id,
         "parent_run_id": run.parent_run_id,
         "config_hash": run.config.config_hash,
+        "config_profiles": run.config.profiles,
         "model": {"ref": run.config.get("model.url") or run.config.get("model.local_path"), "family": run.config.get("model.family")},
         "stages": {
             sid: {
@@ -144,6 +145,7 @@ def render_markdown(summary: dict[str, Any], final: bool) -> str:
         f"- Platform version: {summary['platform_version']}",
         f"- Model: `{summary['model']['ref']}` (family `{summary['model']['family']}`)",
         f"- Config hash: `{summary['config_hash']}`",
+        *[f"- Profile: `{p['path']}` (sha256 `{p['sha256'][:16]}`)" for p in summary.get("config_profiles") or []],
         f"- Generated: {summary['generated_utc']}",
         "",
         "## Stages",

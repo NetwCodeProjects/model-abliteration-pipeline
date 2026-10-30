@@ -16,6 +16,7 @@ from model_pipeline import configspec
 from model_pipeline.cli import build_parser, main, to_overrides
 from model_pipeline.config import build_config, deep_merge, diff_configs, strip_operational
 from model_pipeline.errors import ExitCode, PipelineError
+from model_pipeline.fsutil import sha256_file
 
 
 def write(tmp_path: Path, data: dict, name: str = "c.yaml") -> Path:
@@ -101,6 +102,35 @@ def test_cross_field_validation(tmp_path, data, error_id):
     with pytest.raises(PipelineError) as err:
         build_config(write(tmp_path, data))
     assert err.value.error_id == error_id
+
+
+QWEN35_FP8_IGNORE = [  # the global default before the Qwen findings moved into configs/profiles/qwen3_5.yaml
+    "lm_head",
+    "re:.*embed_tokens$",
+    "re:.*visual\\..*",
+    "re:.*vision_tower.*",
+    "re:.*mlp\\.gate$",
+    "re:.*in_proj_(a|b|ba)$",
+    "re:.*mtp\\.fc$",
+    "re:.*norm.*",
+    "re:.*conv1d.*",
+]
+
+
+@pytest.mark.parametrize("config", ["configs/pipeline.yaml", "examples/qwen-b200.yaml", "examples/ubuntu-quantize-only.yaml"])
+def test_qwen_configs_keep_their_effective_settings_via_the_profile(config):
+    cfg = build_config(ROOT / config)
+    assert cfg.get("quantization.fp8.ignore") == QWEN35_FP8_IGNORE
+    assert cfg.get("quantization.gguf.converter_transformers") == "5.18.0"
+    profile = ROOT / "configs" / "profiles" / "qwen3_5.yaml"
+    assert {"path": str(profile.resolve()), "sha256": sha256_file(profile)} in cfg.profiles
+
+
+def test_non_qwen_config_does_not_inherit_qwen_exclusions(tmp_path):
+    cfg = build_config(write(tmp_path, {"model": {"url": "org/some-llama"}}))
+    ignore = cfg.get("quantization.fp8.ignore")
+    assert not {"re:.*norm.*", "re:.*conv1d.*", "re:.*in_proj_(a|b|ba)$", "re:.*mtp\\.fc$"} & set(ignore)
+    assert cfg.get("quantization.gguf.converter_transformers") is None and cfg.profiles == []
 
 
 def test_only_optional_gates_may_be_disabled(tmp_path):

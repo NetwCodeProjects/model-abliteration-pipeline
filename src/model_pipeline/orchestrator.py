@@ -297,6 +297,7 @@ class Orchestrator:
             candidate = finalize(
                 deep_merge(stored["config"], overrides_to_tree(options.cli_overrides)),
                 stored.get("sources", []) + (["resume overrides"] if options.cli_overrides else []),
+                profiles=stored.get("profiles", []),
             )
             changed = diff_configs(stored["config"], candidate.data)
             if changed:
@@ -355,7 +356,9 @@ class Orchestrator:
         stored = cfg_dir / "resolved-config.json"
         if stored.exists() and how in ("resume", "auto-resume"):
             return
-        atomic_write_json(stored, {"config": run.config.data, "sources": run.config.sources, "parent_run_id": run.parent_run_id})
+        atomic_write_json(
+            stored, {"config": run.config.data, "sources": run.config.sources, "profiles": run.config.profiles, "parent_run_id": run.parent_run_id}
+        )
         atomic_write_text(cfg_dir / "resolved-config.yaml", dump_yaml(run.config.data))
         atomic_write_text(cfg_dir / "resolved-config.sha256", run.config.config_hash + "\n")
         run.update_status(config_hash=run.config.config_hash, parent_run_id=run.parent_run_id)

@@ -5,6 +5,8 @@
 #   ./main.sh --config examples/ubuntu-quantize-only.yaml --ubuntu --yes
 #   ./main.sh --config examples/ubuntu-quantize-only.yaml --model-path /data/my-abliterated-model --yes
 schema_version: '1.0'
+profiles:
+  - ../configs/profiles/qwen3_5.yaml   # Qwen3.5 architecture: converter needs transformers 5.x
 model:
   url: coder3101/Qwen3.8-27B-heretic-ara
   revision: 7904b4f289b67f48430ad27f9e46b41acb82f0e2

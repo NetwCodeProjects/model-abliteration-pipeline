@@ -332,12 +332,7 @@ SPEC = S(
                                 "re:.*visual\\..*",
                                 "re:.*vision_tower.*",
                                 "re:.*mlp\\.gate$",
-                                "re:.*in_proj_(a|b|ba)$",
-                                "re:.*mtp\\.fc$",
-                                # Non-linear tensors that model_free_ptq would otherwise try to quantize
-                                # (seen on real Qwen3.5: 3-D linear_attn.conv1d, 1-D mtp.pre_fc_norm_*).
-                                "re:.*norm.*",
-                                "re:.*conv1d.*",
+                                # Architecture-specific exclusions live in model profiles (configs/profiles/).
                             ],
                             items=F("string"),
                         ),
@@ -359,10 +354,10 @@ SPEC = S(
                         "cuda_architectures": F("string", "auto", description="'auto' derives from nvidia-smi compute capability (B200 -> 100)."),
                         "converter_transformers": F(
                             "string",
-                            "5.18.0",
+                            None,
                             nullable=True,
-                            description="transformers for the converter venv. llama.cpp pins 4.57.6, which cannot load Qwen3.5 tokenizers "
-                            "(upstream README: upgrade for newer models). null keeps the upstream pin.",
+                            description="transformers version for the converter venv; null keeps llama.cpp's own pin. "
+                            "Newer architectures may need an upgrade (e.g. configs/profiles/qwen3_5.yaml).",
                         ),
                         "intermediate_type": F("string", "bf16", enum=("bf16", "f16", "f32")),
                         "imatrix_dataset": F("string", None, nullable=True, description="Calibration text: local file or hf://datasets/<repo>@<rev>/<file>."),

@@ -1,0 +1,38 @@
+# Model profile: Qwen3.5-architecture checkpoints (Qwen3_5ForConditionalGeneration, e.g. Qwen3.8-27B).
+# Merged below the main config via `profiles:`; the main config still wins on every key it sets.
+# Its sha256 is recorded with the resolved config (configs/resolved-config.json) and in the report.
+#
+# Exercised:
+#   - tiny-random/qwen3.8@346bb76e on CPU (WSL2): stages 00-10, FP8_DYNAMIC, GGUF q8_0/iq4_xs + mmproj
+#   - Qwen3.5-2B on one A100 (Lambda, 2026-10-29): Heretic ARA, qualification, GGUF exports
+# Unverified:
+#   - the 27B model, B200/B300, FP8_BLOCK loaded in vLLM (the A100 has no native FP8)
+#
+# Findings behind each setting are in docs/implementation-log.md.
+
+quantization:
+  fp8:
+    # model_free_ptq tried to quantize non-Linear tensors of this architecture: the 3-D
+    # linear_attn.conv1d weights and 1-D mtp.pre_fc_norm_* (real Qwen3.5). The gated-delta-net input
+    # projections (in_proj_a/b/ba) and the MTP fusion layer stay in high precision.
+    ignore:
+      - lm_head
+      - re:.*embed_tokens$
+      - re:.*visual\..*
+      - re:.*vision_tower.*
+      - re:.*mlp\.gate$
+      - re:.*in_proj_(a|b|ba)$
+      - re:.*mtp\.fc$
+      - re:.*norm.*
+      - re:.*conv1d.*
+  gguf:
+    # llama.cpp b11889 pins transformers 4.57.6 for its converter, which cannot load the Qwen3.5
+    # tokenizer (Qwen3_5Tokenizer); the upstream README says to upgrade for newer models.
+    converter_transformers: 5.18.0
+    # The checkpoint has a vision tower: expect an mmproj GGUF next to each text GGUF
+    # (identified by GGUF metadata general.architecture == clip, not by file name).
+    preserve_multimodal: true
+
+# Recommendation, not enabled here: Heretic's merged export drops the 15 'mtp.*' tensors
+# (multi-token-prediction draft head). Set selection.graft_missing_source_tensors: ['mtp.'] in the
+# main config to copy them verbatim from the source (they are not abliterated).

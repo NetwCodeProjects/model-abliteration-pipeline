@@ -135,6 +135,7 @@ def flatten(data: Any, prefix: str = "") -> dict[str, Any]:
 class ResolvedConfig:
     data: dict[str, Any]
     sources: list[str] = field(default_factory=list)
+    profiles: list[dict[str, str]] = field(default_factory=list)  # merged profile files: path + sha256 (provenance)
 
     def get(self, dotted: str, default: Any = None) -> Any:
         return get_dotted(self.data, dotted, default)
@@ -174,6 +175,7 @@ def build_config(
     require_model: bool = True,
 ) -> ResolvedConfig:
     sources = ["built-in defaults"]
+    profiles: list[dict[str, str]] = []
     merged = configspec.defaults()
     if config_path is not None:
         config_path = Path(config_path)
@@ -187,6 +189,7 @@ def build_config(
                 raise PipelineError(ExitCode.CONFIG, "E_CONFIG_INVALID", f"Profile {profile_path} must not nest 'profiles'")
             merged = deep_merge(merged, profile_data)
             sources.append(f"profile {profile_path}")
+            profiles.append({"path": str(profile_path), "sha256": sha256_file(profile_path)})
         merged = deep_merge(merged, user)
         sources.append(f"yaml {config_path}")
     errors = configspec.validate(merged)
@@ -197,16 +200,16 @@ def build_config(
     if cli_overrides:
         merged = deep_merge(merged, overrides_to_tree(cli_overrides))
         sources.append("command line")
-    return finalize(merged, sources, require_model=require_model)
+    return finalize(merged, sources, require_model=require_model, profiles=profiles)
 
 
-def finalize(data: dict[str, Any], sources: list[str], *, require_model: bool = True) -> ResolvedConfig:
+def finalize(data: dict[str, Any], sources: list[str], *, require_model: bool = True, profiles: list[dict[str, str]] | None = None) -> ResolvedConfig:
     errors = configspec.validate(data)
     if errors:
         raise PipelineError(ExitCode.CONFIG, "E_CONFIG_INVALID", "Configuration is invalid:\n  - " + "\n  - ".join(errors), details={"errors": errors})
     data = copy.deepcopy(data)
     _cross_validate(data, require_model=require_model)
-    return ResolvedConfig(data, sources)
+    return ResolvedConfig(data, sources, list(profiles or []))
 
 
 def _cross_validate(data: dict[str, Any], *, require_model: bool) -> None:

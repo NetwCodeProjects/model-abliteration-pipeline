@@ -11,6 +11,7 @@
 schema_version: '1.0'
 profiles:
   - quantization/default.yaml        # quantization defaults (merged below this file)
+  - profiles/qwen3_5.yaml            # Qwen3.5-architecture findings (FP8 exclusions, converter pin); see its header
 
 model:
   url: Qwen/Qwen3.8-27B              # original BF16 checkpoint (NOT the -FP8 derivative)
