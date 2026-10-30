@@ -68,6 +68,25 @@ class ComponentRecord:
     def script(self, script_name: str) -> list[str]:
         return [*self.cmd("python"), str(self.scripts_dir / script_name)]
 
+    def activate(self, env: dict[str, str]) -> dict[str, str]:
+        """``env`` as if this component's venv were activated.
+
+        Its ``bin/`` goes first on PATH and the CUDA libraries shipped as ``nvidia-*`` wheels go first on
+        LD_LIBRARY_PATH. Found on the A100: vLLM's JIT kernels could not find libnvrtc-builtins from the
+        venv, nor the venv's own ``ninja``, while only the venv's python was invoked by path.
+        """
+        venv = self.paths.get("venv")
+        if not venv:
+            return env
+        root = Path(venv)
+        out = dict(env)
+        out["VIRTUAL_ENV"] = str(root)
+        out["PATH"] = os.pathsep.join([str(root / ("Scripts" if sys.platform == "win32" else "bin")), *filter(None, [env.get("PATH")])])
+        libs = sorted(str(p) for p in root.glob("lib/python*/site-packages/nvidia/*/lib") if p.is_dir())
+        if libs:
+            out["LD_LIBRARY_PATH"] = os.pathsep.join([*libs, *filter(None, [env.get("LD_LIBRARY_PATH")])])
+        return out
+
 
 def component_specs(config: dict[str, Any], torch_plan: dict[str, Any], probe: HostProbe | None) -> dict[str, dict[str, Any]]:
     """Desired pins/strategy for every component (the fingerprint input)."""

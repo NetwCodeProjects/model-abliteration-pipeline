@@ -16,6 +16,7 @@ from typing import Any
 from ..adapters import llama_cpp as LC
 from ..artifacts.gguf_meta import read_metadata
 from ..artifacts.manifest import PROCESSOR_FILES, TOKENIZER_FILES
+from ..environment.capabilities import native_fp8
 from ..errors import ExitCode, Interrupted, PipelineError
 from ..evaluation.qualification import integrity_issues
 from ..fsutil import atomic_write_bytes, atomic_write_json, file_inventory, read_json, sha256_file
@@ -36,26 +37,88 @@ def tiny_png(path: Path, rgb: tuple[int, int, int] = (220, 20, 20), size: int = 
     atomic_write_bytes(path, png)
 
 
-def compare_files(artifact_dir: Path, source_dir: Path) -> dict[str, str]:
-    result = {}
+# transformers 5 saves image/video processor settings inside processor_config.json (verified with
+# 5.18.0 on Qwen/Qwen3.5-2B, docs/implementation-log.md): source file -> key in processor_config.json.
+MERGED_PROCESSOR_KEYS = {
+    "preprocessor_config.json": "image_processor",
+    "image_processor_config.json": "image_processor",
+    "video_preprocessor_config.json": "video_processor",
+}
+# Keys that move or are renamed by that merge, not settings: processor_class moves to the top level,
+# and the "Fast" processor class names lose their suffix.
+MERGE_BOOKKEEPING_KEYS = {"processor_class", "image_processor_type", "video_processor_type"}
+
+
+def _load_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _reserialized_basis(name: str, artifact_dir: Path, source_dir: Path) -> str | None:
+    """Why a source file absent from the artifact is still represented in it, or None if it is not."""
+    if name in MERGED_PROCESSOR_KEYS:
+        merged = (_load_json(artifact_dir / "processor_config.json") or {}).get(MERGED_PROCESSOR_KEYS[name])
+        source = _load_json(source_dir / name)
+        if isinstance(merged, dict) and isinstance(source, dict):
+            settings = {k: v for k, v in source.items() if k not in MERGE_BOOKKEEPING_KEYS}
+            if all(merged.get(k) == v for k, v in settings.items()):
+                return f"every setting of {name} is in processor_config.json['{MERGED_PROCESSOR_KEYS[name]}'] with the same value"
+        return None
+    if name in ("vocab.json", "merges.txt"):
+        model = (_load_json(artifact_dir / "tokenizer.json") or {}).get("model") or {}
+        if name == "vocab.json":
+            same = model.get("vocab") is not None and model.get("vocab") == _load_json(source_dir / name)
+        else:
+            lines = (source_dir / name).read_text(encoding="utf-8").splitlines()
+            merges = [m for m in lines if m and not m.startswith("#version")]
+            embedded = [" ".join(m) if isinstance(m, list) else m for m in model.get("merges") or []]
+            same = bool(merges) and merges == embedded
+        return f"identical content embedded in tokenizer.json model.{name.split('.')[0]}" if same else None
+    return None
+
+
+def _tokenizer_differences(artifact_dir: Path, source_dir: Path) -> str:
+    src, dst = _load_json(source_dir / "tokenizer.json") or {}, _load_json(artifact_dir / "tokenizer.json") or {}
+    sm, dm = src.get("model") or {}, dst.get("model") or {}
+    merges = [" ".join(m) if isinstance(m, list) else m for m in sm.get("merges") or []] == [
+        " ".join(m) if isinstance(m, list) else m for m in dm.get("merges") or []
+    ]
+    parts = [f"vocab {'identical' if sm.get('vocab') == dm.get('vocab') else 'DIFFERS'}", f"merges {'identical' if merges else 'DIFFER'}"]
+    added = {t.get("content") for t in dst.get("added_tokens") or []} - {t.get("content") for t in src.get("added_tokens") or []}
+    removed = {t.get("content") for t in src.get("added_tokens") or []} - {t.get("content") for t in dst.get("added_tokens") or []}
+    if added or removed:
+        parts.append(f"added tokens +{sorted(added)[:8]} -{sorted(removed)[:8]}")
+    changed = sorted(k for k in set(src) | set(dst) if k not in ("model", "added_tokens") and src.get(k) != dst.get(k))
+    if changed:
+        parts.append(f"changed sections: {', '.join(changed)}")
+    return "; ".join(parts)
+
+
+def compare_files(artifact_dir: Path, source_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Per preserved file: identical, json-equivalent, re-serialized, differs or missing; plus the basis."""
+    result, basis = {}, {}
     for name in PRESERVED:
         src = source_dir / name
         if not src.is_file():
             continue
         dst = artifact_dir / name
         if not dst.is_file():
-            result[name] = "missing"
+            reason = _reserialized_basis(name, artifact_dir, source_dir)
+            result[name] = "re-serialized" if reason else "missing"
+            if reason:
+                basis[name] = reason
         elif sha256_file(src) == sha256_file(dst):
             result[name] = "identical"
         elif name.endswith(".json"):
-            try:
-                same = json.loads(src.read_text(encoding="utf-8")) == json.loads(dst.read_text(encoding="utf-8"))
-            except ValueError:
-                same = False
+            same = _load_json(src) == _load_json(dst) and _load_json(src) is not None
             result[name] = "json-equivalent" if same else "differs"
+            if name == "tokenizer.json" and not same:
+                basis[name] = _tokenizer_differences(artifact_dir, source_dir)
         else:
             result[name] = "differs"
-    return result
+    return result, basis
 
 
 class VerifyExportsStage(Stage):
@@ -162,7 +225,7 @@ class VerifyExportsStage(Stage):
                 str(out),
             ],
             cwd=None,
-            env=ctx.run.child_env(),
+            env=ctx.run.tool_env(record),
             log_dir=ctx.log_dir,
             name="vllm-smoke",
             timeout_seconds=3600,
@@ -172,9 +235,14 @@ class VerifyExportsStage(Stage):
         data = read_json(out) if out.exists() else {"ok": False, "error": f"no result (exit {result.returncode})"}
         outputs = data.get("outputs") or []
         ok = bool(data.get("ok")) and bool(outputs) and not any(integrity_issues(o, include_thinking=True) for o in outputs)
+        native = native_fp8(ctx.run.probe.gpus() or [])
         return {
             "ran": True,
             "passed": ok,
+            # Without native FP8 vLLM runs a weight-only fallback (capabilities.VLLM_FP8_BASIS): the result
+            # says nothing about the export on FP8 hardware, so it neither passes nor fails it.
+            "representative": native is not False,
+            "native_fp8": native,
             "backend": "vllm",
             "backend_revision": f"vllm {record.versions.get('vllm')}",
             "tested_context": config.get("quantization.fp8.vllm_max_model_len") if ok else None,
@@ -202,7 +270,7 @@ class VerifyExportsStage(Stage):
             res = ctx.run.runner.run(
                 LC.completion_argv(record.cmd("llama-completion"), model, prompt, config.get("quantization.smoke_max_tokens"), ctxlen, layers),
                 cwd=None,
-                env=ctx.run.child_env(),
+                env=ctx.run.tool_env(record),
                 log_dir=ctx.log_dir,
                 name=f"gguf-smoke-{art_dir.name}-{i}",
                 timeout_seconds=timeout,
@@ -230,7 +298,7 @@ class VerifyExportsStage(Stage):
             res = ctx.run.runner.run(
                 LC.mtmd_argv(record.cmd("llama-mtmd-cli"), model, mmproj, image, "What color is this image? Answer in one word.", 16, ctxlen, layers),
                 cwd=None,
-                env=ctx.run.child_env(),
+                env=ctx.run.tool_env(record),
                 log_dir=ctx.log_dir,
                 name=f"gguf-mtmd-{art_dir.name}",
                 timeout_seconds=timeout,
@@ -280,10 +348,11 @@ class VerifyExportsStage(Stage):
                 item["rehash"] = "sizes-only"
             fmt = manifest["artifact"]["format"]
             if fmt == "safetensors":
-                item["preservation"] = compare_files(art_dir, source_dir)
+                item["preservation"], item["preservation_basis"] = compare_files(art_dir, source_dir)
                 bad = {k: v for k, v in item["preservation"].items() if v in ("missing", "differs") and not (k == "config.json")}
                 if bad:
-                    ctx.warn(f"{role}: tokenizer/processor files not preserved verbatim: {bad}")
+                    detail = f" (tokenizer.json: {item['preservation_basis']['tokenizer.json']})" if "tokenizer.json" in item["preservation_basis"] else ""
+                    ctx.warn(f"{role}: tokenizer/processor files not preserved verbatim: {bad}{detail}")
             else:
                 gguf_checks = {}
                 for f in expected:
@@ -308,7 +377,13 @@ class VerifyExportsStage(Stage):
             item["smoke"] = smoke
             report[role] = item
             manifest["validation"]["integrity_passed"] = not problems
-            if smoke.get("ran"):
+            unrepresentative = smoke.get("ran") and smoke.get("representative") is False
+            if unrepresentative:
+                ctx.warn(
+                    f"{role}: loader test ran on the weight-only FP8 fallback ({'passed' if smoke['passed'] else 'failed'}); "
+                    "not representative of native FP8, so inference_passed stays null (unverified_execution)"
+                )
+            elif smoke.get("ran"):
                 manifest["validation"]["inference_passed"] = bool(smoke["passed"])
                 manifest["validation"]["modalities_tested"] = smoke.get("modalities", [])
                 manifest["inference"] = {
@@ -324,7 +399,7 @@ class VerifyExportsStage(Stage):
             if problems:
                 integrity_failures.append(role)
                 ctx.warn(f"{role}: integrity problems {problems[:3]}")
-            if smoke.get("ran") and not smoke["passed"]:
+            if smoke.get("ran") and not smoke["passed"] and not unrepresentative:
                 inference_failures.append(role)
                 ctx.warn(f"{role}: loader smoke test FAILED")
             elif not smoke.get("ran"):

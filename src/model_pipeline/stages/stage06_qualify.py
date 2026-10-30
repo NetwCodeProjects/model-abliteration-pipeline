@@ -24,7 +24,7 @@ def run_generation_script(ctx: StageContext, spec: dict[str, Any], name: str, ti
     result = ctx.run.runner.run(
         [*record.script("qualify.py"), "--spec", str(spec_path), "--out", str(out_path)],
         cwd=None,
-        env=ctx.run.child_env(),
+        env=ctx.run.tool_env(record),
         log_dir=ctx.log_dir,
         name=name,
         timeout_seconds=timeout_minutes * 60,

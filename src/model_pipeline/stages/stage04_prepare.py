@@ -76,7 +76,7 @@ class PrepareEngineStage(Stage):
         result = ctx.run.runner.run(
             [*record.script("heretic_introspect.py"), "--out", str(out)],
             cwd=None,
-            env=ctx.run.child_env(),
+            env=ctx.run.tool_env(record),
             log_dir=ctx.log_dir,
             name="heretic-introspect",
             timeout_seconds=900,
@@ -93,7 +93,7 @@ class PrepareEngineStage(Stage):
         help_res = ctx.run.runner.run(
             [*record.cmd("heretic"), "--help"],
             cwd=None,
-            env=ctx.run.child_env(COLUMNS="200", NO_COLOR="1"),
+            env=ctx.run.tool_env(record, COLUMNS="200", NO_COLOR="1"),
             log_dir=ctx.log_dir,
             name="heretic-help",
             timeout_seconds=600,

@@ -156,3 +156,29 @@ overwrites the stored budget. No pipeline code was changed.
   the report. **Deviation from the specification:** the profile file hash is *not* part of stage keys.
   Stage keys already depend on the effective merged values, and keying on the file would invalidate a
   finished 27B study after a comment-only edit. Assessment records (Step 5) will carry the profile hashes.
+
+## 2026-10-29 — Step 6: fixes from the A100 run
+
+- **Capability policy** (`environment/capabilities.py`, stage 00). Findings fall into three categories:
+  `unsupported_configuration`, `estimated_resource_shortage` and `unverified_execution`. Each finding
+  cites its basis. The existing VRAM and disk warnings are now findings. New error id:
+  `E_CAPABILITY_UNSUPPORTED` (exit 4).
+- **FP8 on GPUs without native FP8.** Stage 09 still runs the vLLM loader test there, but records it with
+  `representative: false` and leaves `inference_passed` null. A failure does not make the run partial.
+- **Tool-environment activation.** `Run.tool_env(record)` and `ComponentRecord.activate` put the venv
+  `bin/` and the `site-packages/nvidia/*/lib` folders first on the search paths for every tool process
+  (stages 04, 05, 06, 08 and 09). No package was added: the A100 vLLM install log shows that
+  `ninja==1.13.2` was already in the venv, just not on `PATH`.
+- **Preservation check.** Evidence: the small tokenizer and processor files of `Qwen/Qwen3.5-2B@15852e8c`
+  were loaded and re-saved with transformers 5.18.0 (Heretic venv, WSL). The result matched the A100
+  observation exactly:
+  - `preprocessor_config.json` and `video_preprocessor_config.json` are merged into
+    `processor_config.json`. Every setting is preserved; `processor_class` moved and the
+    `…ImageProcessorFast` name lost its suffix.
+  - `vocab.json` and `merges.txt` are embedded unchanged in `tokenizer.json`.
+  - `tokenizer.json` gains 7 audio/TTS added tokens, and its decoder and pre-tokenizer flags change.
+
+  Encode and decode were identical on 8 probe strings, but the added tokens change tokenization of those
+  strings, so `tokenizer.json` is still reported as `differs`, now with a summary. The first two cases
+  are `re-serialized` with their basis. The real processor files are kept as test fixtures in
+  `tests/fixtures/transformers5_qwen35/`.

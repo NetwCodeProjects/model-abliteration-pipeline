@@ -114,8 +114,8 @@ class QuantizeStage(Stage):
                 return None
         return sub
 
-    def _run_tool(self, ctx: StageContext, argv: list[str], name: str, hours: float = 8, cwd: Path | None = None) -> None:
-        result = ctx.run.runner.run(argv, cwd=cwd, env=ctx.run.child_env(), log_dir=ctx.log_dir, name=name, timeout_seconds=hours * 3600)
+    def _run_tool(self, ctx: StageContext, record, argv: list[str], name: str, hours: float = 8, cwd: Path | None = None) -> None:
+        result = ctx.run.runner.run(argv, cwd=cwd, env=ctx.run.tool_env(record), log_dir=ctx.log_dir, name=name, timeout_seconds=hours * 3600)
         if result.interrupted:
             raise Interrupted()
         if not result.ok:
@@ -176,7 +176,10 @@ class QuantizeStage(Stage):
         result_path.unlink(missing_ok=True)
         try:
             self._run_tool(
-                ctx, FP8.quantize_argv(record.cmd("python"), record.scripts_dir / "fp8_quantize.py", in_dir, partial, recipe_path, result_path), "fp8-quantize"
+                ctx,
+                record,
+                FP8.quantize_argv(record.cmd("python"), record.scripts_dir / "fp8_quantize.py", in_dir, partial, recipe_path, result_path),
+                "fp8-quantize",
             )
             result = read_json(result_path) if result_path.exists() else {}
             if not result.get("ok"):
@@ -235,7 +238,7 @@ class QuantizeStage(Stage):
         work.mkdir(parents=True)
         model_file = work / f"{family}-{itype}.gguf"
         in_dir = Path(inp["uri"])
-        self._run_tool(ctx, LC.convert_argv(record.cmd("convert"), in_dir, model_file, itype), "gguf-convert")
+        self._run_tool(ctx, record, LC.convert_argv(record.cmd("convert"), in_dir, model_file, itype), "gguf-convert")
         if not model_file.is_file():
             raise PipelineError(ExitCode.QUANTIZE, "E_GGUF_CONVERT", f"Converter did not produce {model_file.name}")
         read_metadata(model_file)
@@ -247,7 +250,7 @@ class QuantizeStage(Stage):
             mtype = config.get("quantization.gguf.mmproj_type")
             before = set(work.glob("*.gguf"))
             try:
-                self._run_tool(ctx, LC.mmproj_argv(record.cmd("convert"), in_dir, work / f"mmproj-{family}-{mtype}.gguf", mtype), "gguf-mmproj")
+                self._run_tool(ctx, record, LC.mmproj_argv(record.cmd("convert"), in_dir, work / f"mmproj-{family}-{mtype}.gguf", mtype), "gguf-mmproj")
                 produced = sorted(set(work.glob("*.gguf")) - before)
                 # The converter keeps --outfile as given (no automatic prefix, verified on b11889):
                 # identify the projector by its GGUF metadata, not by its name.
@@ -266,6 +269,7 @@ class QuantizeStage(Stage):
             gpu_layers = "all" if record.build.get("cuda") else "0"
             self._run_tool(
                 ctx,
+                record,
                 LC.imatrix_argv(
                     record.cmd("llama-imatrix"), model_file, Path(imatrix_data["path"]), out, config.get("quantization.gguf.imatrix_chunks"), gpu_layers
                 ),
@@ -340,6 +344,7 @@ class QuantizeStage(Stage):
                 raise PipelineError(ExitCode.QUANTIZE, "E_DISK_INSUFFICIENT", f"Not enough space for {fmt}")
             self._run_tool(
                 ctx,
+                record,
                 LC.quantize_argv(record.cmd("llama-quantize"), Path(inter["model"]), out_file, fmt, Path(imatrix["path"]) if imatrix else None),
                 f"gguf-quantize-{fmt}",
             )

@@ -18,7 +18,7 @@ Stage IDs and names are stable public contracts. Every executed stage writes
 
 | ID | Name | Depends on | Inputs | Outputs | Gate |
 |---|---|---|---|---|---|
-| 00 | preflight | — | host | `metrics/preflight.json` | Linux; GPU if GPU components needed; free disk ≥ `min_free_disk_gb`; warnings for disk/VRAM/ECC/ephemeral storage. **Always re-run.** |
+| 00 | preflight | — | host | `metrics/preflight.json` | Linux; GPU if GPU components needed; free disk ≥ `min_free_disk_gb`; capability findings (below); warnings for ECC/ephemeral storage. **Always re-run.** |
 | 01 | environment | 00 | profile, pins | `tools/components.json`, `metrics/components.json` | host prerequisites satisfied (or guarded installs succeeded); every needed component validated *now* (imports, `heretic --help`, CUDA matmul unless `torch_backend=cpu`) |
 | 02 | acquire | 00 | model ref | source record + manifest, reproduce.json, prefetched pinned datasets, imatrix text | commit SHA resolved; every file sha256 / git-blob verified; source read-only |
 | 03 | published_baselines | 02 | baseline YAML | `metrics/published_baselines.json` | provenance fields present; zero inference |
@@ -27,7 +27,7 @@ Stage IDs and names are stable public contracts. Every executed stage writes
 | 06 | qualify | 05 | candidate | `metrics/qualification.json` | reload + generations completed (gates are applied in 07) |
 | 07 | select_master | 05, 06 | gates | `exports/<precision>/<name>/` + manifest, `metrics/selection.json` | decision table outcome is `promoted:*` (qualified, research or ungated; docs/evaluation.md) |
 | 08 | quantize | 01 (fp8/llama_cpp), 07 *or* 02 | master/source/path | `exports/fp8/…`, `exports/gguf/…` + manifests, `receipts/08-quantize/<fmt>.json` | each format succeeds independently; input fingerprint unchanged |
-| 09 | verify_exports | 01, 02, 07?, 08? | registered artifacts | `metrics/verification.json`, updated manifests | re-hash matches; loader smoke tests (failures → partial) |
+| 09 | verify_exports | 01, 02, 07?, 08? | registered artifacts | `metrics/verification.json`, updated manifests | re-hash matches; loader smoke tests (failures → partial; an FP8 test on a GPU without native FP8 is recorded as not representative and leaves `inference_passed` null) |
 | 10 | report_export | 09 | everything | `reports/{report.md,run-summary.json,manifest-index.json}` | — |
 
 ## Restart and invalidation rules
@@ -45,3 +45,18 @@ Stage IDs and names are stable public contracts. Every executed stage writes
   with the same parent artifact and recipe ID (also across runs); finalized exports are never overwritten.
 - **Interrupts:** first SIGINT/SIGTERM is forwarded to the child (Heretic exports the best completed
   trial on SIGINT), the stage is recorded `interrupted` (exit 130); a second signal aborts immediately.
+
+## Capability findings (stage 00)
+
+`environment/capabilities.py` compares what the configured backends need with what the host offers.
+Every finding has one of three categories and cites the requirement it rests on (`basis`). Findings are
+written to `metrics/preflight.json` and shown as warnings.
+
+| Category | Effect | Rules |
+|---|---|---|
+| `unsupported_configuration` | stops before any work (`E_CAPABILITY_UNSUPPORTED`, exit 4) | `fp8_vllm_compute`: FP8 loader test requested on a GPU below compute capability 8.0. vLLM documents no FP8 path there. |
+| `estimated_resource_shortage` | warning | `vram_vs_checkpoint` (Heretic needs the BF16 model on the GPU), `disk_estimate` |
+| `unverified_execution` | warning | `fp8_vllm_weight_only`: compute capability 8.0–8.8 (e.g. A100) has no native FP8, so vLLM runs a weight-only fallback. `hardware_not_exercised`: no recorded real run on this compute capability (e.g. B200 10.0, B300 10.3). |
+
+Compute capability is used only where a backend documents it as the requirement. It is never a general
+compatibility verdict.

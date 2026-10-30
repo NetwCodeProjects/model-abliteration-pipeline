@@ -9,6 +9,7 @@ import platform
 from pathlib import Path
 from typing import Any
 
+from ..environment.capabilities import assess, finding
 from ..environment.detect import classify_storage, detect_profile, lambda_stack_markers
 from ..errors import ExitCode, PipelineError
 from ..fsutil import atomic_write_json, disk_free_bytes, human_bytes
@@ -89,20 +90,34 @@ class PreflightStage(Stage):
         source_size = known_source_size(config)
         estimate = estimate_disk(config, source_size)
         facts["disk_estimate"] = estimate
+        findings = assess(config, gpus, needs_gpu=needs_gpu(config), heretic="heretic" in components, source_size=source_size)
         if estimate["total_bytes"] is not None:
             needed = estimate["total_bytes"] + float(config.get("environment.disk_buffer_gb")) * 1024**3
             if free < needed:
-                ctx.warn(f"Estimated need {human_bytes(needed)} (incl. buffer) exceeds free space {human_bytes(free)}")
+                findings.append(
+                    finding(
+                        "estimated_resource_shortage",
+                        "disk_estimate",
+                        f"Estimated need {human_bytes(needed)} (incl. buffer) exceeds free space {human_bytes(free)}",
+                        "Estimate: source + candidate + master + exports (planning.estimate_disk) + environment.disk_buffer_gb",
+                    )
+                )
         else:
             ctx.info("Disk requirement unknown until the model is resolved (stage 02 re-checks against real sizes).")
-        if source_size and gpus and "heretic" in components:
-            vram = max((g.get("memory_total_mib") or 0) for g in gpus) * 1024**2
-            if vram and vram < 1.15 * source_size:
-                ctx.warn(
-                    f"Largest GPU has {human_bytes(vram)} but the BF16 checkpoint is {human_bytes(source_size)}; "
-                    "Heretic will offload or need bnb_4bit loading (which changes the master's provenance)."
-                )
+        facts["capabilities"] = findings
+        for item in findings:
+            ctx.warn(f"[{item['category']}] {item['message']}")
+        unsupported = [f for f in findings if f["category"] == "unsupported_configuration"]
+        if unsupported:
+            atomic_write_json(ctx.metrics_path("preflight.json"), facts)
+            raise PipelineError(
+                ExitCode.PREFLIGHT,
+                "E_CAPABILITY_UNSUPPORTED",
+                "; ".join(f["message"] for f in unsupported),
+                hint="Basis: " + " | ".join(f["basis"] for f in unsupported),
+            )
         out = ctx.metrics_path("preflight.json")
         atomic_write_json(out, facts)
         ctx.add_output(out, "preflight_report")
+        ctx.diagnostics["capabilities"] = {c: [f["rule"] for f in findings if f["category"] == c] for c in sorted({f["category"] for f in findings})}
         ctx.diagnostics["gpus"] = [{k: g.get(k) for k in ("name", "memory_total_mib", "driver_version", "compute_capability")} for g in gpus]

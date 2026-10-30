@@ -72,8 +72,17 @@ def make_tiny_model(path: Path, vision: bool = True) -> Path:
 
 
 class FakeProbe(HostProbe):
-    def __init__(self, lambda_stack: bool = False, tools: set[str] | None = None, gpus: bool = True, platform: str = "linux") -> None:
+    def __init__(
+        self,
+        lambda_stack: bool = False,
+        tools: set[str] | None = None,
+        gpus: bool = True,
+        platform: str = "linux",
+        gpu_name: str = "NVIDIA B200",
+        compute_capability: str = "10.0",
+    ) -> None:
         super().__init__(allow_exec=False)
+        self.gpu_name, self.compute_capability = gpu_name, compute_capability
         self.lambda_stack = lambda_stack
         self.tools = tools if tools is not None else {"git", "cmake", "g++", "make", "nvidia-smi", "nvcc"}
         self._gpus = gpus
@@ -103,10 +112,10 @@ class FakeProbe(HostProbe):
         return [
             {
                 "index": 0,
-                "name": "NVIDIA B200",
+                "name": self.gpu_name,
                 "memory_total_mib": 183359.0,
                 "driver_version": "580.95.05",
-                "compute_capability": "10.0",
+                "compute_capability": self.compute_capability,
                 "uuid": "GPU-fake",
                 "ecc_uncorrected_volatile": "0",
             }

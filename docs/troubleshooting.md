@@ -8,6 +8,7 @@ Every failure prints `ERROR [E_ID] message` + `hint:` and is stored in the stage
 |---|---|---|
 | `E_CONTROL_ENV_MISSING` on `--dry-run` | no `.venv` and no system PyYAML | `sudo apt-get install python3-yaml` or `./main.sh --bootstrap --yes` |
 | `E_CONFIRMATION_REQUIRED` (15) | non-interactive run without `--yes` | add `--yes` |
+| `E_CAPABILITY_UNSUPPORTED` (4) | a requested step the backend documents as impossible on this GPU (e.g. FP8 loader test below compute capability 8.0) | follow the hint (e.g. `quantization.fp8.verify_backend: none`); the basis is in `metrics/preflight.json` |
 | `E_CONFIG_INVALID … got bool` | unquoted YAML boolean-like value | quote it: `'off'` |
 | `E_ENV_UNSUPPORTED_PLATFORM` | running stages on non-Linux | use Ubuntu/WSL2; `--dry-run` works anywhere |
 | `E_ENV_AMBIGUOUS` | non-Ubuntu Linux with `profile: auto` | pass `--ubuntu` or `--lambda-stack` |

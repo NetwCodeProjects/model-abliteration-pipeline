@@ -170,6 +170,10 @@ class Run:
         overrides.update(extra)
         return child_env(**overrides)
 
+    def tool_env(self, record, **extra: str | None) -> dict[str, str]:
+        """Environment for a process of the tool component ``record`` (its venv activated)."""
+        return record.activate(self.child_env(**extra))
+
     def check_interrupt(self) -> None:
         if self.interrupt_event.is_set():
             raise Interrupted()

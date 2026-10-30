@@ -305,3 +305,20 @@ def test_fork_with_other_pareto_index_continues_study_without_new_trials(env, mo
     candidate = json.loads((fork / "metrics" / "candidate.json").read_text())
     assert candidate["summary"]["exported_trial_index"] == 5 and candidate["summary"]["optimizer_kl"] <= 0.1
     assert env.receipt(parent, "04")["diagnostics"]["seed"] == env.receipt(fork, "04")["diagnostics"]["seed"]
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_fp8_loader_test_on_a100_is_not_representative(env, monkeypatch, fails):
+    env.probe.gpu_name, env.probe.compute_capability = "NVIDIA A100-SXM4-40GB", "8.0"
+    if fails:
+        monkeypatch.setenv("FAKE_VLLM_FAIL", "1")
+    env.provision()
+    code, out = env.run("--quantizations", "fp8")
+    assert code == 0, out  # a fallback failure neither fails nor passes the export
+    run = env.latest_run()
+    fp8 = manifests(env, run)["export:fp8"]
+    assert fp8["validation"]["inference_passed"] is None
+    smoke = fp8["extensions"]["verification"]["smoke"]
+    assert smoke["ran"] and smoke["representative"] is False and smoke["passed"] is (not fails)
+    preflight = json.loads((run / "metrics" / "preflight.json").read_text())
+    assert [f["rule"] for f in preflight["capabilities"]] == ["fp8_vllm_weight_only"]

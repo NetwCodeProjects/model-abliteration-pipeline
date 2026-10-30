@@ -35,7 +35,20 @@ FP8 is not implemented (`calibration_manifest` is rejected).
 
 Verification: stage 09 loads the export with **vLLM 0.32.0** (`max_model_len` 8192 by default) and
 generates greedy answers to the smoke prompts (text only; image inputs are not tested for FP8, so
-`modalities_tested` is `["text"]` at most).
+`modalities_tested` is `["text"]` at most). Tool processes run with their venv activated, so the
+venv's `bin/` (with vLLM's `ninja`) is first on `PATH` and its `nvidia-*` libraries are first on `LD_LIBRARY_PATH`.
+vLLM's JIT kernels need both; on the A100 they failed without them.
+
+On GPUs without native FP8 (compute capability below 8.9, e.g. A100 = 8.0), vLLM runs FP8 checkpoints
+weight-only through a fallback kernel. The test still runs and its result is recorded
+(`extensions.verification.smoke.representative: false`). It neither passes nor fails the export, and
+`inference_passed` stays `null`. FP8 is only verified on native-FP8 hardware.
+
+Preservation check: transformers 5 merges `preprocessor_config.json` and `video_preprocessor_config.json`
+into `processor_config.json`, and stores `vocab.json`/`merges.txt` only inside `tokenizer.json`. Those
+files are reported as `re-serialized` with the equivalence basis (`preservation_basis`), not as `missing`.
+A rewritten `tokenizer.json` stays `differs`, with a summary of what changed. For Qwen3.5-2B, transformers
+5.18.0 adds seven audio/TTS special tokens and changes the decoder flags, so some strings tokenize differently.
 
 ## GGUF (llama.cpp b11889)
 

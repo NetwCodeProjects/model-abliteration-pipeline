@@ -42,7 +42,7 @@ class AbliterateStage(Stage):
         result = ctx.run.runner.run(
             [*record.script("heretic_study_tool.py"), *args, "--out", str(out)],
             cwd=None,
-            env=ctx.run.child_env(),
+            env=ctx.run.tool_env(record),
             log_dir=ctx.log_dir,
             name=name,
             timeout_seconds=900,
@@ -138,7 +138,7 @@ class AbliterateStage(Stage):
             result = run.runner.run(
                 argv,
                 cwd=workdir,
-                env=H.engine_env(run.child_env()),
+                env=H.engine_env(run.tool_env(record)),
                 log_dir=ctx.log_dir,
                 name="heretic",
                 budget_seconds=budget,
