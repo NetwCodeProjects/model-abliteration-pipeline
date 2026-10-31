@@ -235,3 +235,13 @@ Real-tool verification (WSL2, CPU, real Heretic `171bb98b`, `tiny-random/qwen3.8
 | real study tool on the A100 journal (copy) | Pareto `[8, 9, 3, 5]` | selection picks trial 3 (refusals 0.03, KL 0.0916) |
 
 The kill-recovery, lock and environment-change tests use the fake engine only.
+
+## 2026-10-31 — `--set KEY=VALUE` (approved deviation)
+
+The change specification allowed no CLI features beyond `--trial-id`. That left fork-time changes of
+the selection thresholds and policy reachable only through the programmatic API (the Steps 2–3
+limitation). The user approved one generic override flag instead of per-key flags. `--set` is
+repeatable; values are YAML scalars or lists, and every key and type passes the same config validation
+as the YAML (exit 3). A malformed pair, or a key also set by a dedicated flag or given twice, is a usage
+error (`E_SET_INVALID`, exit 2). On `--resume` a changed key needs `--fork`, as with any override. The
+fork selection tests now use the real flag instead of patching `cli.to_overrides`.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -90,6 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
     choice = p.add_mutually_exclusive_group()
     choice.add_argument("--trial-id", type=positive_int, metavar="N", help="export Heretic trial N instead of the policy choice (gates still apply)")
     choice.add_argument("--pareto-index", type=non_negative_int, metavar="N", help="export the trial at Pareto position N (0 = fewest refusals)")
+    p.add_argument(
+        "--set",
+        dest="set_values",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="override any config key (repeatable; VALUE is YAML, e.g. --set selection.max_optimizer_kl=0.08 or =null)",
+    )
     p.add_argument("--yes", "-y", action="store_true", help="acknowledge the compatibility notice and confirm downloads/installs non-interactively")
     p.add_argument("--output-dir", metavar="DIR", help="workspace root (storage.root)")
     p.add_argument("--log-level", choices=["debug", "info", "warning"], help="console verbosity")
@@ -170,7 +179,41 @@ def to_overrides(args: argparse.Namespace) -> dict[str, Any]:
         o["storage.root"] = str(Path(args.output_dir).expanduser().resolve())
     if args.log_level:
         o["logging.console_level"] = args.log_level
+    o.update(parse_set_values(args.set_values, flag_keys=set(o)))
     return o
+
+
+NUMBER_RE = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+
+
+def parse_set_values(items: list[str], flag_keys: set[str] = frozenset()) -> dict[str, Any]:
+    """``--set KEY=VALUE`` pairs. Key names and value types are checked by config validation (exit 3)."""
+    import yaml  # noqa: PLC0415 - keeps --help stdlib-only
+
+    from .config import PATH_KEYS  # noqa: PLC0415
+
+    out: dict[str, Any] = {}
+    for item in items:
+        key, sep, text = item.partition("=")
+        key = key.strip()
+        if not sep or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*", key) or not text.strip():
+            raise PipelineError(
+                ExitCode.USAGE, "E_SET_INVALID", f"--set expects KEY=VALUE with a dotted config key, got {item!r}", hint="Use null for an empty value."
+            )
+        if key in out or key in flag_keys:
+            raise PipelineError(
+                ExitCode.USAGE, "E_SET_INVALID", f"{key} is set twice on the command line", hint="Give each key once, either with --set or its dedicated flag."
+            )
+        try:
+            value = yaml.safe_load(text)
+        except yaml.YAMLError as exc:
+            raise PipelineError(ExitCode.USAGE, "E_SET_INVALID", f"--set {key}: value is not valid YAML: {exc}") from exc
+        if isinstance(value, str) and NUMBER_RE.fullmatch(value):
+            value = float(value)  # YAML 1.1 reads 1e-3 as a string
+        if key in PATH_KEYS and isinstance(value, str):
+            value = str(Path(value).expanduser().resolve())
+        out[key] = value
+    return out
 
 
 def config_path_from(args: argparse.Namespace) -> Path | None:

@@ -66,7 +66,8 @@ of the component spec.
 | study identity | a different study |
 
 The stage key of stage 05 includes the selection inputs (optimize only), so a fork that changes
-them re-executes stage 05, and the phases above decide what actually runs.
+them re-executes stage 05, and the phases above decide what actually runs. Thresholds and policy are
+changed with `--set`, e.g. `./main.sh --resume RUN --fork --set selection.max_optimizer_kl=0.08`.
 
 ## Selection (phase 3)
 
@@ -178,8 +179,8 @@ and KL values, and an export-only restore under a different environment may not 
 weights that were scored. Silently continuing would mix both.
 
 Design note: a config key to start a new study in place was considered and dropped. A resume
-cannot change the configuration and a fork can change it only through CLI flags, so such a key
-could not be reached when it is needed.
+cannot change the configuration, and in a fork (`--set`) it would only duplicate `--new-run`, which
+already starts a new study and records it as a `replay`.
 
 ## Resume and kill recovery
 

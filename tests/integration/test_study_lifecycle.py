@@ -62,14 +62,6 @@ def a100_run(env, monkeypatch, *extra):
     return env.run("--max-trials", "12", "--through", "5", *extra)
 
 
-def with_overrides(monkeypatch, extra: dict):
-    """Config overrides for a fork that the CLI has no flag for (thresholds, policy)."""
-    import model_pipeline.cli as cli
-
-    original = cli.to_overrides
-    monkeypatch.setattr(cli, "to_overrides", lambda args: {**original(args), **extra})
-
-
 def test_a100_study_replay_selects_trial_3_with_zero_new_trials(env, monkeypatch):
     code, out = a100_run(env, monkeypatch)
     assert code == 0, out
@@ -90,21 +82,20 @@ def test_a100_study_replay_selects_trial_3_with_zero_new_trials(env, monkeypatch
 
 
 @pytest.mark.parametrize(
-    "overrides,cli,expected",
+    "cli,expected",
     [
-        ({"selection.max_optimizer_kl": 0.08}, [], 5),
-        ({"selection.max_optimizer_refusal_rate": 0.02}, [], "E_NO_ELIGIBLE_TRIAL"),
-        ({"selection.policy": "min_kl_within_refusals"}, [], 5),
-        ({}, ["--trial-id", "5"], 5),
+        (["--set", "selection.max_optimizer_kl=0.08"], 5),
+        (["--set", "selection.max_optimizer_refusal_rate=0.02"], "E_NO_ELIGIBLE_TRIAL"),
+        (["--set", "selection.policy=min_kl_within_refusals"], 5),
+        (["--trial-id", "5"], 5),
     ],
     ids=["kl-threshold", "refusal-threshold", "policy", "manual-trial"],
 )
-def test_selection_change_in_a_fork_reselects_and_exports_without_new_trials(env, monkeypatch, overrides, cli, expected):
+def test_selection_change_in_a_fork_reselects_and_exports_without_new_trials(env, monkeypatch, cli, expected):
     assert a100_run(env, monkeypatch)[0] == 0
     parent = env.latest_run()
     parent_files = study_files(env, parent)
     invocations = env.count("heretic")
-    with_overrides(monkeypatch, overrides)
     code, out = env.run("--resume", parent.name, "--fork", *cli)
     fork = env.latest_run()
     assert fork.name != parent.name

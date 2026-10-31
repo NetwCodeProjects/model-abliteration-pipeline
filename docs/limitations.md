@@ -28,9 +28,6 @@ Nothing in this repository claims real B200 results. `tests/gpu/` contains the c
 - Only Pareto-optimal trials can be exported headlessly (Heretic's `trial_index` indexes the front);
   a manual `--trial-id` naming a dominated trial is refused. One trial is exported per stage-05 execution;
   choosing another (fork) re-runs export only.
-- Selection thresholds and policy can only be changed in a fork through the programmatic API: the CLI has
-  no flag for them (the change specification allows no new CLI features beyond `--trial-id`). From the
-  command line, a new run with an edited YAML starts a new study and repeats the search.
 - A study recorded under another tool environment is not continued (`E_STUDY_ENVIRONMENT_CHANGED`); after
   re-provisioning, `--new-run` repeats the search.
 - Budget enforcement is wall-clock + SIGINT; a trial in progress at the deadline is discarded by Heretic.

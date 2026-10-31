@@ -29,6 +29,7 @@ and runs `python -m model_pipeline`. `./main.sh --bootstrap --yes` only creates 
 | `--max-runtime-minutes N` | `abliteration.max_runtime_minutes` | operational (may change on resume) |
 | `--trial-id N` | `abliteration.trial_id` | export Heretic trial N instead of the policy choice; resolved and recorded once; gates still apply ([study lifecycle](study-lifecycle.md)) |
 | `--pareto-index N` | `abliteration.pareto_trial_index` | compatibility: resolved to a trial identifier at selection time; exclusive with `--trial-id` |
+| `--set KEY=VALUE` | any key | repeatable; VALUE is parsed as YAML (`0.08`, `true`, `null`, `[a, b]`); unknown keys and wrong types → exit 3 (`E_CONFIG_INVALID`); a malformed pair, or a key given twice or also set by its dedicated flag → exit 2 (`E_SET_INVALID`); path keys resolve against the current directory. With `--resume`, a changed key needs `--fork` like any override |
 | `--yes`, `-y` | `execution.yes` | acknowledges the compatibility notice and project-local downloads/installs; privileged host steps additionally need their `environment.allow_*` flag |
 | `--output-dir DIR` | `storage.root` | |
 | `--log-level` | `logging.console_level` | |
@@ -41,7 +42,7 @@ Mutually exclusive / invalid combinations (exit 2): `--lambda-stack`+`--ubuntu`;
 
 ## Precedence
 
-New run: **CLI > YAML > profiles listed in the YAML > built-in defaults.** Resume: **stored resolved
+New run: **CLI (dedicated flags and `--set`) > YAML > profiles listed in the YAML > built-in defaults.** Resume: **stored resolved
 config + CLI overrides**; the current YAML is ignored. `resolved-config.{json,yaml,sha256}` are written
 per run.
 
@@ -51,7 +52,7 @@ per run.
 |---:|---|---|
 | 0 | success | |
 | 1 | internal error (bug) | `E_INTERNAL` |
-| 2 | usage | argparse errors, `E_MODEL_REF_INVALID` (from CLI), `E_UNKNOWN_STAGE`, `E_STAGE_RANGE`, `E_CLEANUP_TOKEN` |
+| 2 | usage | argparse errors, `E_MODEL_REF_INVALID` (from CLI), `E_SET_INVALID`, `E_UNKNOWN_STAGE`, `E_STAGE_RANGE`, `E_CLEANUP_TOKEN` |
 | 3 | configuration | `E_CONFIG_INVALID`, `E_CONFIG_YAML`, `E_CONFIG_NOT_FOUND`, `E_MODEL_MISSING`, `E_TOML_INVALID`, `E_HERETIC_UNKNOWN_SETTING`, `E_HERETIC_TEMPLATE_CONTROL_KEY`, `E_REPRODUCE_SOURCE_MISSING`, `E_BASELINES_INVALID`, `E_PATH_ESCAPE`, `E_GATE_REQUIREMENT_MISSING`, `E_TRIAL_CHOICE_CONFLICT`, `E_TRIAL_NOT_FOUND`, `E_TRIAL_NOT_EXPORTABLE` |
 | 4 | preflight | `E_ENV_UNSUPPORTED_PLATFORM`, `E_ENV_AMBIGUOUS`, `E_PREFLIGHT_NO_GPU`, `E_DISK_FLOOR`, `E_CAPABILITY_UNSUPPORTED` |
 | 5 | environment | `E_HOST_PREREQ`, `E_HOST_ACTION_FAILED`, `E_REBOOT_REQUIRED`, `E_INSTALL_STEP_FAILED`, `E_COMPONENT_VALIDATION_FAILED`, `E_COMPONENT_MISSING`, `E_UV_MISSING`, `E_PIN_MISMATCH`, `E_CONTROL_ENV_INCOMPLETE`, `E_EXECUTABLE_MISSING` |

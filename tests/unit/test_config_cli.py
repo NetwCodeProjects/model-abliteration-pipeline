@@ -233,6 +233,46 @@ def test_help_and_version_and_stage_list():
     assert out.getvalue().splitlines()[5].startswith("05  abliterate")
 
 
+def test_set_overrides_any_key_with_yaml_values(tmp_path):
+    path = write(tmp_path, {"model": {"url": "a/b"}, "selection": {"max_optimizer_kl": 0.1}})
+    _, args = parse(
+        "--set",
+        "selection.max_optimizer_kl=1e-3",
+        "--set",
+        "selection.policy=min_kl_within_refusals",
+        "--set",
+        "selection.optional_gates=[integrity, benign_pass_rate]",
+        "--set",
+        "selection.min_benign_pass_rate=null",
+        "--set",
+        "abliteration.seed=7",
+        "--set",
+        "storage.root=rel/ws",
+    )
+    cfg = build_config(path, to_overrides(args))
+    assert cfg.get("selection.max_optimizer_kl") == 0.001 and cfg.get("selection.policy") == "min_kl_within_refusals"
+    assert cfg.get("selection.optional_gates") == ["integrity", "benign_pass_rate"] and cfg.get("selection.min_benign_pass_rate") is None
+    assert cfg.get("abliteration.seed") == 7 and cfg.get("storage.root") == str(Path("rel/ws").resolve())
+    assert "command line" in cfg.sources
+
+
+@pytest.mark.parametrize(
+    "argv,code",
+    [
+        (["--set", "selection.max_optimizer_kl"], ExitCode.USAGE),
+        (["--set", "=1"], ExitCode.USAGE),
+        (["--set", "selection.max_optimizer_kl="], ExitCode.USAGE),
+        (["--set", "abliteration.max_trials=3", "--max-trials", "4"], ExitCode.USAGE),
+        (["--set", "abliteration.seed=1", "--set", "abliteration.seed=2"], ExitCode.USAGE),
+        (["--set", "selection.no_such_key=1"], ExitCode.CONFIG),
+        (["--set", "selection.policy=fastest"], ExitCode.CONFIG),
+        (["--set", "abliteration.max_trials=many"], ExitCode.CONFIG),
+    ],
+)
+def test_set_rejects_malformed_duplicate_and_unknown_keys(tmp_path, argv, code):
+    assert main(["--config", "none", "--model-url", "a/b", "--dry-run", "--output-dir", str(tmp_path), *argv]) == code
+
+
 def test_invalid_model_url_is_a_usage_error(tmp_path):
     assert main(["--config", "none", "--model-url", "http://huggingface.co/a/b", "--dry-run", "--output-dir", str(tmp_path)]) == ExitCode.USAGE
 
