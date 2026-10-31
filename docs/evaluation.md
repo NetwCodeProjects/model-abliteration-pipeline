@@ -7,7 +7,8 @@ Project A distinguishes four kinds of numbers and never mixes them:
 | **Published** | model cards (copied with source URL, retrieval date, evaluator, caveat) | stage 03 → `metrics/published_baselines.json` | `published (copied from cited sources; not measured by this platform)` |
 | **Optimizer metrics** | Heretic's in-loop scorers (KeywordRate refusals, first-token KL) on Heretic's own evaluation prompts, used to *select* trials | stage 05 → `metrics/heretic_study.json`, `candidate.json` | `heretic_optimizer (… not held-out validation)` |
 | **Independent fast qualification** | Project A: reload the saved candidate from disk with transformers, greedy generations on held-out prompts | stage 06 → `metrics/qualification.json` | `independent_qualification` |
-| **Loader smoke tests** | vLLM / llama.cpp / transformers on exported files | stage 09 → manifests | `integrity-only` / validation fields |
+| **Loader smoke tests** | vLLM / llama.cpp / transformers on exported files | stage 09 → verification assessment records; manifest status derived from them | `integrity-only` / validation fields |
+| **Master vs export comparison** | the same small suite and rendered prompts on the baseline and on each export | stage 09 → `metrics/comparison.json`, comparison assessment records | exported runtime vs baseline runtime |
 
 ## Published baselines (default, `baseline_mode: published_only`)
 
@@ -128,6 +129,44 @@ Required gates are combined with this precedence. The **weakest claim wins**:
 
 `evaluation/promotion.py::decide` implements this table as a pure function.
 `tests/unit/test_promotion.py` checks every single-gate row and the mixed-gate cases.
+
+## Master vs export comparison (stage 09)
+
+Stage 09 runs the `comparison` suite (8 benign + 4 held-out refusal prompts by default) on the
+baseline (the master, or the source for quantize-only) and on each export, and records counts with
+denominators and deltas as "exported runtime vs baseline runtime". Records, export gates and the
+`unmeasured` rule: [assessments](assessments.md#comparison).
+
+### Comparison contract
+
+Recorded per run in `metrics/comparison.json` and in each comparison assessment record:
+
+| Field | Value |
+|---|---|
+| prompts | per prompt: id, kind, sha256 and length of the prompt and of the rendered text; the text itself unless redacted |
+| chat template | rendered **once** with the baseline tokenizer (`apply_chat_template`, generation prompt added); template sha256 |
+| thinking mode | `evaluation.enable_thinking` (default false) |
+| max new tokens | `evaluation.comparison.max_new_tokens` (default 128) |
+| stop sequences | none; generation stops at the model's end-of-sequence tokens |
+| decoding | greedy (temperature 0), seed 0 |
+| context length | required = longest rendered prompt (baseline tokens) + max new tokens; no truncation: a backend whose configured context is smaller gets a contract gap |
+| redaction | `exact_text_replay`: `available` or `unavailable (redacted)` |
+
+### What each backend cannot honor
+
+| Backend | Gap | Basis |
+|---|---|---|
+| transformers (baseline) | none; it is the reference renderer | `scripts/runtime/qualify.py` |
+| vLLM (FP8) | none known. vLLM receives the rendered text through `LLM.generate`, tokenizes it with the export's tokenizer files (stage 09 checks they match the source) and decodes greedily | vLLM API. **Not run with real vLLM in this repository** (no GPU), so this is unverified |
+| llama.cpp (GGUF) | **tokenization:** the rendered text is tokenized from the GGUF vocabulary (special tokens parsed, BOS per GGUF metadata), not by the Hugging Face tokenizer | pinned `d854d98`, `tools/completion/completion.cpp`: `common_tokenize(ctx, prompt, true, true)`, `add_bos = llama_vocab_get_add_bos(vocab)` |
+| llama.cpp (GGUF) | **stop:** stops at the GGUF's end-of-generation tokens (`llama_vocab_is_eog`), which can include tokens that `generation_config.json` does not list | same file |
+| any | **context:** configured context (`vllm_max_model_len`, `gguf.smoke_context`) smaller than required. llama.cpp would shift the context instead of failing | recorded per run when it occurs |
+
+llama.cpp is invoked as `llama-completion -f <prompt file> --no-escape --no-display-prompt -no-cnv
+--temp 0 -s 0 -n N -c C`. `-f` drops one trailing newline, so the file holds the rendered text plus
+one newline. `--no-escape` stops `\n`-style sequences in the text from being rewritten (escape
+processing is on by default and also applies to `-f`). Both behaviors were read in the pinned
+source (`common/arg.cpp`).
 
 ## What these numbers do not mean
 
