@@ -20,6 +20,7 @@ WELCOME = """
  Review:   configs/pipeline.yaml
  Preview:  ./main.sh --dry-run
  Help:     ./main.sh --help
+ Run:      ./main.sh --yes
 """.strip("\n")
 
 
