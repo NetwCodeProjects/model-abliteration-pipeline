@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/model-abliteration-pipeline/artifact.schema.json",
+  "$id": "https://example.invalid/llm-surgeon/artifact.schema.json",
   "title": "Project A artifact manifest",
   "description": "One manifest per produced artifact (including the unmodified source). Consumers such as Project B rely only on this file, never on Project A internals.",
   "type": "object",

@@ -1,9 +1,9 @@
 # Project A — next changes: trustworthy promotion, constraint-based selection, export behavior
 
-You are continuing work on **model-abliteration-pipeline** (Project A), a CLI that runs Heretic
+You are continuing work on **llm-surgeon** (Project A), a CLI that runs Heretic
 abliteration and FP8/GGUF quantization with receipts, resume and artifact manifests.
 
-- Repository: `model-abliteration-pipeline/` (GitHub `NetwCodeProjects/model-abliteration-pipeline`, branch `main`).
+- Repository: `llm-surgeon/` (GitHub `NetwCodeProjects/llm-surgeon`, branch `main`).
 - Read first: `README.md`, `docs/architecture.md`, `docs/stages.md`, `docs/evaluation.md`,
   `docs/heretic-adapter.md`, `docs/artifact-schema.md`, `docs/limitations.md`,
   `docs/implementation-log.md`, `docs/PROJECT_A_AGENT_HANDOFF.md` (original specification; its rules still apply).

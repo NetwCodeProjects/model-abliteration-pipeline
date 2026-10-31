@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from model_pipeline.errors import ExitCode
+from llm_surgeon.errors import ExitCode
 
 
 def manifests(env, run_dir):

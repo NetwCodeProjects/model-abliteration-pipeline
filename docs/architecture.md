@@ -3,7 +3,7 @@
 ## Components
 
 ```text
-main.sh ──► model_pipeline.cli ──► config (spec, precedence, validation) ──► orchestrator
+main.sh ──► llm_surgeon.cli ──► config (spec, precedence, validation) ──► orchestrator
                                                                              │
           ┌──────────────────────────────────────────────────────────────────┤
           ▼                                                                  ▼
@@ -86,4 +86,4 @@ logging, …) are excluded from all fingerprints.
 
 Project A ends at manifests. Project B consumes `workspace/manifests/*.json` (or
 `runs/<run>/reports/manifest-index.json`) and the files they list; it must not import
-`model_pipeline`. Deep capability benchmarks (HumanEval+, SWE-bench, …) are out of scope here.
+`llm_surgeon`. Deep capability benchmarks (HumanEval+, SWE-bench, …) are out of scope here.

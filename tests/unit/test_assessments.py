@@ -7,11 +7,11 @@ import json
 import pytest
 from conftest import ROOT
 
-from model_pipeline.artifacts import assessments as A
-from model_pipeline.artifacts.manifest import ArtifactRegistry, build_manifest
-from model_pipeline.config import build_config
-from model_pipeline.errors import PipelineError
-from model_pipeline.evaluation import comparison as C
+from llm_surgeon.artifacts import assessments as A
+from llm_surgeon.artifacts.manifest import ArtifactRegistry, build_manifest
+from llm_surgeon.config import build_config
+from llm_surgeon.errors import PipelineError
+from llm_surgeon.evaluation import comparison as C
 
 FILES = [{"relative_path": "model.safetensors", "size_bytes": 10, "sha256": "c" * 64}]
 LOADER = {"inference_passed": True, "modalities_tested": ["text"], "backend": "llama.cpp", "backend_revision": "llama.cpp abc", "tested_context": 4096}
@@ -240,7 +240,7 @@ def test_suite_uses_fast_prompts_and_its_hash_covers_markers(tmp_path):
 
 
 def test_llama_cpp_generated_text_strips_the_end_of_generation_marker():
-    from model_pipeline.adapters import llama_cpp as LC
+    from llm_surgeon.adapters import llama_cpp as LC
 
     # Real stdout of llama-completion d854d98 with --no-display-prompt (Qwen3.5-0.8B GGUF, implementation log).
     assert LC.generated_text("Paris [end of text]\n") == ("Paris", "stop")

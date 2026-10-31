@@ -7,7 +7,7 @@ not model live in the native template (`abliteration.heretic_config`, default
 `configs/heretic/<experiment>.toml`), never in the pipeline YAML.
 
 - **Schema:** `schemas/pipeline.schema.json` (JSON Schema 2020-12) is generated from
-  `src/model_pipeline/configspec.py` (`python scripts/generate_schema.py`; a unit test fails if it is stale).
+  `src/llm_surgeon/configspec.py` (`python scripts/generate_schema.py`; a unit test fails if it is stale).
 - **Strictness:** unknown keys, wrong types, out-of-range numbers and unknown enum values are errors
   (`E_CONFIG_INVALID`, exit 3) listing every problem with its dotted path.
 - **YAML 1.2 booleans:** only `true`/`false` are booleans. `off`, `no`, `yes` stay strings

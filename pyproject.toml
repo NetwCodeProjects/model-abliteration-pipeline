@@ -1,5 +1,5 @@
 [project]
-name = "model-abliteration-pipeline"
+name = "llm-surgeon"
 version = "1.0.0"
 description = "Project A: reproducible, configurable CLI platform for model abliteration (Heretic) and quantization (FP8/GGUF)."
 readme = "README.md"
@@ -22,14 +22,14 @@ dev = [
 ]
 
 [project.scripts]
-model-pipeline = "model_pipeline.cli:main"
+llm-surgeon = "llm_surgeon.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/model_pipeline"]
+packages = ["src/llm_surgeon"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

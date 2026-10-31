@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from conftest import FIXTURES
 
-from model_pipeline.errors import ExitCode
+from llm_surgeon.errors import ExitCode
 
 A100 = FIXTURES / "a100_study" / "study.json"
 

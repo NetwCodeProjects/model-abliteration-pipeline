@@ -14,13 +14,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from model_pipeline import configspec  # noqa: E402
-from model_pipeline.adapters.hf_hub import RepoFile, RepoInfo  # noqa: E402
-from model_pipeline.artifacts.safetensors_meta import write_safetensors  # noqa: E402
-from model_pipeline.environment.components import ComponentRecord, component_specs  # noqa: E402
-from model_pipeline.environment.detect import HostProbe  # noqa: E402
-from model_pipeline.fsutil import atomic_write_json, sha256_file, sha256_obj  # noqa: E402
-from model_pipeline.orchestrator import Services  # noqa: E402
+from llm_surgeon import configspec  # noqa: E402
+from llm_surgeon.adapters.hf_hub import RepoFile, RepoInfo  # noqa: E402
+from llm_surgeon.artifacts.safetensors_meta import write_safetensors  # noqa: E402
+from llm_surgeon.environment.components import ComponentRecord, component_specs  # noqa: E402
+from llm_surgeon.environment.detect import HostProbe  # noqa: E402
+from llm_surgeon.fsutil import atomic_write_json, sha256_file, sha256_obj  # noqa: E402
+from llm_surgeon.orchestrator import Services  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 FAKE_RUNTIME = FIXTURES / "fake_runtime"
@@ -153,7 +153,7 @@ class FakeHub:
         if repo_type == "dataset":
             return RepoInfo(repo_id, repo_type, revision or "d" * 40, revision, files=[])
         if repo_id not in self.repos:
-            from model_pipeline.errors import ExitCode, PipelineError
+            from llm_surgeon.errors import ExitCode, PipelineError
 
             raise PipelineError(ExitCode.ACQUIRE, "E_HF_NOT_FOUND", f"{repo_id} not found (fake)")
         path, sha = self.repos[repo_id]
@@ -266,7 +266,7 @@ class Env:
         """configs/pipeline.yaml with absolute profile paths, tiny disk floors and ``changes`` deep-merged."""
         import yaml
 
-        from model_pipeline.config import deep_merge
+        from llm_surgeon.config import deep_merge
 
         data = yaml.safe_load((ROOT / "configs" / "pipeline.yaml").read_text(encoding="utf-8"))
         data["profiles"] = [str(ROOT / "configs" / p) for p in data.get("profiles", [])]
@@ -277,8 +277,8 @@ class Env:
         return path
 
     def config(self, extra: list[str] | None = None):
-        from model_pipeline.cli import build_parser, config_path_from, to_overrides
-        from model_pipeline.config import build_config
+        from llm_surgeon.cli import build_parser, config_path_from, to_overrides
+        from llm_surgeon.config import build_config
 
         args = build_parser().parse_args(self.base_args + (extra or []))
         return build_config(config_path_from(args), to_overrides(args))
@@ -287,7 +287,7 @@ class Env:
         provision(self.workspace, self.config(extra), self.probe)
 
     def run(self, *extra: str) -> tuple[int, str]:
-        from model_pipeline.cli import main
+        from llm_surgeon.cli import main
 
         stream = io.StringIO()
         code = main(self.base_args + list(extra), services=self.services, stream=stream)

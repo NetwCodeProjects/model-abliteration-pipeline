@@ -242,7 +242,7 @@ Populate actual values, never placeholders in finalized manifests. Use `null` fo
 ## 9. Directory/repository layout
 
 ```text
-model-abliteration-pipeline/
+llm-surgeon/
 ├── main.sh
 ├── pyproject.toml
 ├── uv.lock
@@ -262,7 +262,7 @@ model-abliteration-pipeline/
 ├── schemas/
 │   ├── pipeline.schema.json
 │   └── artifact.schema.json
-├── src/model_pipeline/
+├── src/llm_surgeon/
 │   ├── cli.py
 │   ├── config.py
 │   ├── orchestrator.py

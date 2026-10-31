@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/model-abliteration-pipeline/assessment.schema.json",
+  "$id": "https://example.invalid/llm-surgeon/assessment.schema.json",
   "title": "Project A assessment record",
   "description": "One append-only record per measurement of an artifact (docs/assessments.md). Records are never rewritten; manifests derive their status from them.",
   "type": "object",

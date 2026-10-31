@@ -568,7 +568,7 @@ def to_json_schema(node: Node = SPEC, root: bool = True) -> dict[str, Any]:
         if root:
             schema = {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "$id": "https://example.invalid/model-abliteration-pipeline/pipeline.schema.json",
+                "$id": "https://example.invalid/llm-surgeon/pipeline.schema.json",
                 "title": "Project A pipeline configuration",
                 **schema,
             }

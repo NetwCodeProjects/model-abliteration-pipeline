@@ -6,9 +6,9 @@ import itertools
 
 import pytest
 
-from model_pipeline import configspec
-from model_pipeline.evaluation.promotion import decide, evidence_line
-from model_pipeline.evaluation.qualification import evaluate_gates
+from llm_surgeon import configspec
+from llm_surgeon.evaluation.promotion import decide, evidence_line
+from llm_surgeon.evaluation.qualification import evaluate_gates
 
 RUN_MODES = ("optimize", "exact_reproduction_attempt", "approximate_reproduction")
 ORIGINS = ({"kind": "policy"}, {"kind": "manual", "trial_id": 3}, {"kind": "pareto_position", "position": 0})

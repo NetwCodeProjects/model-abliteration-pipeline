@@ -12,11 +12,11 @@ import pytest
 import yaml
 from conftest import ROOT
 
-from model_pipeline import configspec
-from model_pipeline.cli import build_parser, main, to_overrides
-from model_pipeline.config import build_config, deep_merge, diff_configs, strip_operational
-from model_pipeline.errors import ExitCode, PipelineError
-from model_pipeline.fsutil import sha256_file
+from llm_surgeon import configspec
+from llm_surgeon.cli import build_parser, main, to_overrides
+from llm_surgeon.config import build_config, deep_merge, diff_configs, strip_operational
+from llm_surgeon.errors import ExitCode, PipelineError
+from llm_surgeon.fsutil import sha256_file
 
 
 def write(tmp_path: Path, data: dict, name: str = "c.yaml") -> Path:
@@ -227,7 +227,7 @@ def test_help_and_version_and_stage_list():
         main(["--help"])
     assert exc.value.code == 0
     out = io.StringIO()
-    assert main(["--version"], stream=out) == 0 and "model-abliteration-pipeline" in out.getvalue()
+    assert main(["--version"], stream=out) == 0 and "llm-surgeon" in out.getvalue()
     out = io.StringIO()
     assert main(["--list-stages"], stream=out) == 0
     assert out.getvalue().splitlines()[5].startswith("05  abliterate")

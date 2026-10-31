@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from conftest import ROOT
 
-from model_pipeline.errors import ExitCode
+from llm_surgeon.errors import ExitCode
 
 
 def manifests(env, run):

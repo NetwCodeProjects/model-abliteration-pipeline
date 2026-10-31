@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from model_pipeline.fsutil import quick_fingerprint
+from llm_surgeon.fsutil import quick_fingerprint
 
 STAGES = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 

@@ -22,9 +22,9 @@ import pytest
 import yaml
 from conftest import ROOT, FakeProbe
 
-from model_pipeline.adapters.hf_hub import HubClient
-from model_pipeline.cli import main
-from model_pipeline.orchestrator import Services
+from llm_surgeon.adapters.hf_hub import HubClient
+from llm_surgeon.cli import main
+from llm_surgeon.orchestrator import Services
 
 pytestmark = pytest.mark.realtools
 WS = os.environ.get("REALTOOLS_WS")
@@ -192,7 +192,7 @@ def test_real_study_tool_on_the_a100_journal_selects_trial_3(tmp_path):
     import shutil
     import subprocess
 
-    from model_pipeline.evaluation.selection import select_trial
+    from llm_surgeon.evaluation.selection import select_trial
 
     components = json.loads((Path(WS) / "tools" / "components.json").read_text())["components"]
     heretic = components["heretic"]

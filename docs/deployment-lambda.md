@@ -46,7 +46,7 @@ master hardlinked, FP8 ~30 GB, GGUF BF16 intermediate ~55 GB, IQ4_XS ~15 GB, IQ3
 ## Commands
 
 ```bash
-git clone <repo> && cd model-abliteration-pipeline
+git clone https://github.com/NetwCodeProjects/llm-surgeon.git && cd llm-surgeon
 ./main.sh --lambda-stack --setup-only --yes                    # ~10-20 min: venvs, CUDA torch, llama.cpp (sm_100) build
 ./main.sh --lambda-stack --yes                                 # full run (optimize: 50 trials / 180 min budget)
 ./main.sh --config examples/qwen-b200.yaml --yes               # approximate reproduction of the ARA reference

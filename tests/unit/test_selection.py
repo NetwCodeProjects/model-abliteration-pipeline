@@ -8,8 +8,8 @@ import sys
 import pytest
 from conftest import FAKE_BIN, FIXTURES
 
-from model_pipeline.adapters import heretic_study as HS
-from model_pipeline.evaluation.selection import select_trial
+from llm_surgeon.adapters import heretic_study as HS
+from llm_surgeon.evaluation.selection import select_trial
 
 A100 = json.loads((FIXTURES / "a100_study" / "study.json").read_text())
 

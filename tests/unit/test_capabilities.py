@@ -10,10 +10,10 @@ from pathlib import Path
 import pytest
 from conftest import FIXTURES
 
-from model_pipeline.config import build_config
-from model_pipeline.environment.capabilities import CATEGORIES, assess, native_fp8
-from model_pipeline.environment.components import ComponentRecord
-from model_pipeline.stages.stage09_verify import compare_files
+from llm_surgeon.config import build_config
+from llm_surgeon.environment.capabilities import CATEGORIES, assess, native_fp8
+from llm_surgeon.environment.components import ComponentRecord
+from llm_surgeon.stages.stage09_verify import compare_files
 
 A100 = {"name": "NVIDIA A100-SXM4-40GB", "compute_capability": "8.0", "memory_total_mib": 40960}
 B300 = {"name": "NVIDIA B300", "compute_capability": "10.3", "memory_total_mib": 270000}

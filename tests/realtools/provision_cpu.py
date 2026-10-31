@@ -15,11 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from model_pipeline.config import build_config  # noqa: E402
-from model_pipeline.environment.components import ComponentManager, component_specs, find_uv  # noqa: E402
-from model_pipeline.environment.detect import HostProbe  # noqa: E402
-from model_pipeline.subprocesses import CommandRunner  # noqa: E402
-from model_pipeline.telemetry import EventLogger, Redactor  # noqa: E402
+from llm_surgeon.config import build_config  # noqa: E402
+from llm_surgeon.environment.components import ComponentManager, component_specs, find_uv  # noqa: E402
+from llm_surgeon.environment.detect import HostProbe  # noqa: E402
+from llm_surgeon.subprocesses import CommandRunner  # noqa: E402
+from llm_surgeon.telemetry import EventLogger, Redactor  # noqa: E402
 
 
 def main() -> int:

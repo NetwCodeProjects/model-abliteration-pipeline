@@ -11,12 +11,12 @@ import sys
 import pytest
 from conftest import ROOT, make_tiny_model
 
-from model_pipeline.artifacts.gguf_meta import read_metadata, write_minimal_gguf
-from model_pipeline.artifacts.manifest import ArtifactRegistry, artifact_id_for, build_manifest, check_manifest
-from model_pipeline.artifacts.safetensors_meta import dtype_summary, graft_tensors, read_header, tensor_diff, tensor_map, write_safetensors
-from model_pipeline.config import load_yaml
-from model_pipeline.errors import PipelineError
-from model_pipeline.fsutil import (
+from llm_surgeon.artifacts.gguf_meta import read_metadata, write_minimal_gguf
+from llm_surgeon.artifacts.manifest import ArtifactRegistry, artifact_id_for, build_manifest, check_manifest
+from llm_surgeon.artifacts.safetensors_meta import dtype_summary, graft_tensors, read_header, tensor_diff, tensor_map, write_safetensors
+from llm_surgeon.config import load_yaml
+from llm_surgeon.errors import PipelineError
+from llm_surgeon.fsutil import (
     FileLock,
     atomic_write_json,
     ensure_within,
@@ -211,7 +211,7 @@ def test_manifest_refuses_placeholders(tmp_path):
 
 
 def test_registry_register_attach_and_id_guard(tmp_path):
-    from model_pipeline.artifacts import assessments as A
+    from llm_surgeon.artifacts import assessments as A
 
     reg = ArtifactRegistry(tmp_path / "run", tmp_path / "ws")
     files = [{"relative_path": "a", "size_bytes": 1, "sha256": "c" * 64}]

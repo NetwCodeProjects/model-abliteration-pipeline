@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/model-abliteration-pipeline/pipeline.schema.json",
+  "$id": "https://example.invalid/llm-surgeon/pipeline.schema.json",
   "title": "Project A pipeline configuration",
   "type": "object",
   "properties": {

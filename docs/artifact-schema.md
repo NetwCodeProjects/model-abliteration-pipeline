@@ -90,4 +90,4 @@ under `runs/<run>/assessments/`. Validated against `schemas/assessment.schema.js
 - `schema_version` changes on any breaking change (major) and on additive top-level fields (minor, e.g. 1.1); other additive information goes into `extensions`.
 - Measurements never overwrite earlier measurements: they are separate assessment records.
 - Re-verification: any consumer can recompute `artifact_id` from `artifact.files` and compare file hashes.
-- Project B reads manifests only; it does not import `model_pipeline`.
+- Project B reads manifests only; it does not import `llm_surgeon`.

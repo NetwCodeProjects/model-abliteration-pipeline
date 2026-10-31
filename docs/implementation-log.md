@@ -294,3 +294,13 @@ Verification: unit tests (`tests/unit/test_assessments.py`) and fake-runtime int
 llama.cpp invocation (finding 26). The vLLM path and a full stage 09 comparison have not run with real
 tools (no GPU here).
 
+
+## 2026-10-31 — Renamed to llm-surgeon
+
+The project and its GitHub repository are now `llm-surgeon` (`https://github.com/NetwCodeProjects/llm-surgeon`;
+GitHub redirects the old URL). Distribution `llm-surgeon`, import package `llm_surgeon` (was
+`model_pipeline`), console script `llm-surgeon` (was `model-pipeline`), `main.sh` runs
+`python -m llm_surgeon`, schema `$id`s and `--version` use the new name. Paths in earlier entries of this
+log were updated to the new package directory. Stored data is unaffected: receipts, manifests and
+assessment records never contain the package name. `uv.lock` and `requirements/*.txt` were regenerated;
+only the project entry changed.

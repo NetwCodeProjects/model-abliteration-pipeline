@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from conftest import FakeProbe, fake_hub, fake_services  # noqa: E402
 
-from model_pipeline.cli import main  # noqa: E402
+from llm_surgeon.cli import main  # noqa: E402
 
 if __name__ == "__main__":
     os.environ["FAKE_PIPELINE_PID"] = str(os.getpid())

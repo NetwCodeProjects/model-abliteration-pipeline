@@ -10,18 +10,18 @@ from pathlib import Path
 import pytest
 from conftest import FakeProbe, fake_component_records
 
-from model_pipeline import configspec
-from model_pipeline.config import build_config
-from model_pipeline.environment import get_profile
-from model_pipeline.environment.components import ComponentManager
-from model_pipeline.environment.detect import HostProbe, classify_storage, cuda_arch_from_capability, detect_profile
-from model_pipeline.errors import ExitCode, PipelineError
-from model_pipeline.fsutil import atomic_write_json
-from model_pipeline.orchestrator import RunOptions, affected_stages, selected_stage_ids
-from model_pipeline.planning import components_for_config, estimate_disk
-from model_pipeline.stages import STAGES, stage_by_ref
-from model_pipeline.subprocesses import CommandRunner
-from model_pipeline.telemetry import EventLogger, Redactor
+from llm_surgeon import configspec
+from llm_surgeon.config import build_config
+from llm_surgeon.environment import get_profile
+from llm_surgeon.environment.components import ComponentManager
+from llm_surgeon.environment.detect import HostProbe, classify_storage, cuda_arch_from_capability, detect_profile
+from llm_surgeon.errors import ExitCode, PipelineError
+from llm_surgeon.fsutil import atomic_write_json
+from llm_surgeon.orchestrator import RunOptions, affected_stages, selected_stage_ids
+from llm_surgeon.planning import components_for_config, estimate_disk
+from llm_surgeon.stages import STAGES, stage_by_ref
+from llm_surgeon.subprocesses import CommandRunner
+from llm_surgeon.telemetry import EventLogger, Redactor
 
 CHILD = r"""
 import signal, sys, time

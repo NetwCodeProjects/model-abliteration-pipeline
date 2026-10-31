@@ -65,7 +65,7 @@ both runs gave the same trial identifiers and weight hashes.
    run with `checkpoint_action = "continue"`. Verify afterwards that the trial set is unchanged.
    Verify that `Restoring model from trial N` names the expected trial `index`, and fail the stage
    otherwise. The existing `heretic_study_tool.py update-settings` cannot set `model_action`, and
-   stage 05 passes the configured budget ([stage05_abliterate.py:112](../src/model_pipeline/stages/stage05_abliterate.py#L112)),
+   stage 05 passes the configured budget ([stage05_abliterate.py:112](../src/llm_surgeon/stages/stage05_abliterate.py#L112)),
    which is the C-hazard path. Both must change.
 2. **Search-only contract.** Use `model_action = ""` with `trial_index` set. Heretic still
    restores one trial in memory after the search. That is cheap on the tiny model, but costs one

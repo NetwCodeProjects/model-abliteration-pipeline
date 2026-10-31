@@ -7,14 +7,14 @@ import json
 import pytest
 from conftest import FIXTURES, ROOT
 
-from model_pipeline import configspec
-from model_pipeline.adapters import heretic as H
-from model_pipeline.adapters import toml_io
-from model_pipeline.config import load_yaml
-from model_pipeline.environment.components import filter_constraints
-from model_pipeline.errors import PipelineError
-from model_pipeline.evaluation.baselines import ingest, published_method, validate_baselines
-from model_pipeline.evaluation.qualification import evaluate_gates, integrity_issues, is_refusal, score_results, visible_text
+from llm_surgeon import configspec
+from llm_surgeon.adapters import heretic as H
+from llm_surgeon.adapters import toml_io
+from llm_surgeon.config import load_yaml
+from llm_surgeon.environment.components import filter_constraints
+from llm_surgeon.errors import PipelineError
+from llm_surgeon.evaluation.baselines import ingest, published_method, validate_baselines
+from llm_surgeon.evaluation.qualification import evaluate_gates, integrity_issues, is_refusal, score_results, visible_text
 
 FIELDS = json.loads((FIXTURES / "heretic_settings_171bb98b.json").read_text())["settings_fields"]
 
@@ -193,7 +193,7 @@ def test_shipped_baselines_have_provenance_and_flag_mismatches():
 
 
 def test_benign_prompts_file_is_valid():
-    from model_pipeline.evaluation.qualification import load_benign_prompts
+    from llm_surgeon.evaluation.qualification import load_benign_prompts
 
     prompts = load_benign_prompts(ROOT / "configs" / "qualification" / "benign_prompts.yaml")
     assert len([p for p in prompts if p["category"] == "fast"]) == 10

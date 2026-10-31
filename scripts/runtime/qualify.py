@@ -2,7 +2,7 @@
 
 Loads the checkpoint from disk with transformers (a real reload of what Heretic saved), applies the
 model's chat template (thinking mode as configured), decodes greedily and writes raw generations.
-Scoring happens in the control plane (model_pipeline.evaluation.qualification) so it is unit-tested.
+Scoring happens in the control plane (llm_surgeon.evaluation.qualification) so it is unit-tested.
 Optional extended KL: mean KL(source || candidate) of next-token distributions on held-out prompts.
 """
 

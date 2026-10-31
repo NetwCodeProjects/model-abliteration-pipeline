@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None, services: Any = None, stream=None) -> in
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.version:
-        stream.write(f"model-abliteration-pipeline {__version__}\n")
+        stream.write(f"llm-surgeon {__version__}\n")
         return int(ExitCode.OK)
     check_combinations(args, parser)
     try:

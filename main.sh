@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Project A entry point. All logic lives in the Python CLI (src/model_pipeline/cli.py).
+# Project A entry point. All logic lives in the Python CLI (src/llm_surgeon/cli.py).
 #
 # Python selection (no surprise installs):
 #   1. the project control venv (.venv) if it exists;
@@ -67,13 +67,13 @@ bootstrap() {
 }
 
 if PY="$(venv_python)"; then
-  exec "$PY" -m model_pipeline "$@"
+  exec "$PY" -m llm_surgeon "$@"
 fi
 
 SYS_PY="$(find_system_python)" || { echo "ERROR [E_PYTHON_MISSING] Python >= 3.10 not found (sudo apt-get install -y python3)" >&2; exit 5; }
 
 if has_arg --help || has_arg -h || has_arg --version || has_arg --list-stages; then
-  exec "$SYS_PY" -m model_pipeline "$@"
+  exec "$SYS_PY" -m llm_surgeon "$@"
 fi
 
 if has_arg --bootstrap; then
@@ -88,7 +88,7 @@ for flag in --dry-run --print-config --list-runs --status --cleanup; do
 done
 if [ "$INSPECT" = 1 ] && ! has_arg --confirm-cleanup; then
   if YAML_PY="$(find_system_python yaml)"; then
-    exec "$YAML_PY" -m model_pipeline "$@"
+    exec "$YAML_PY" -m llm_surgeon "$@"
   fi
   echo "ERROR [E_CONTROL_ENV_MISSING] this command needs PyYAML and the control environment does not exist yet." >&2
   echo "  hint: sudo apt-get install -y python3-yaml, or create .venv with: ./main.sh --bootstrap --yes" >&2
@@ -96,4 +96,4 @@ if [ "$INSPECT" = 1 ] && ! has_arg --confirm-cleanup; then
 fi
 
 bootstrap "$SYS_PY"
-exec "$(venv_python)" -m model_pipeline "$@"
+exec "$(venv_python)" -m llm_surgeon "$@"

@@ -12,10 +12,10 @@ import sys
 import pytest
 from conftest import ROOT, FakeProbe
 
-from model_pipeline.adapters.hf_hub import RepoFile, RepoInfo, normalize_model_ref, validate_revision, verify_snapshot
-from model_pipeline.cli import main
-from model_pipeline.errors import PipelineError
-from model_pipeline.orchestrator import Services
+from llm_surgeon.adapters.hf_hub import RepoFile, RepoInfo, normalize_model_ref, validate_revision, verify_snapshot
+from llm_surgeon.cli import main
+from llm_surgeon.errors import PipelineError
+from llm_surgeon.orchestrator import Services
 
 
 @pytest.mark.parametrize(

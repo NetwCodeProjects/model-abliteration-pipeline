@@ -2,7 +2,7 @@
 
 `main.sh` selects a Python (project `.venv` → stdlib for `--help`/`--version`/`--list-stages` →
 system python with PyYAML for `--dry-run`/inspection → otherwise bootstraps `.venv` after confirmation)
-and runs `python -m model_pipeline`. `./main.sh --bootstrap --yes` only creates `.venv`.
+and runs `python -m llm_surgeon`. `./main.sh --bootstrap --yes` only creates `.venv`.
 
 ## Flags
 

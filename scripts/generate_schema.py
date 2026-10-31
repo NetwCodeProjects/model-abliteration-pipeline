@@ -1,4 +1,4 @@
-"""Regenerate schemas/pipeline.schema.json from model_pipeline.configspec (the single source of truth).
+"""Regenerate schemas/pipeline.schema.json from llm_surgeon.configspec (the single source of truth).
 
 Usage: python scripts/generate_schema.py [--check]
 --check exits 1 if the committed schema is out of date (used by the unit tests and CI).
@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from model_pipeline.configspec import to_json_schema  # noqa: E402
+from llm_surgeon.configspec import to_json_schema  # noqa: E402
 
 TARGET = ROOT / "schemas" / "pipeline.schema.json"
 
