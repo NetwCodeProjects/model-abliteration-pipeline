@@ -158,7 +158,7 @@ Recorded per run in `metrics/comparison.json` and in each comparison assessment 
 |---|---|---|
 | transformers (baseline) | none; it is the reference renderer | `scripts/runtime/qualify.py` |
 | vLLM (FP8) | none known. vLLM receives the rendered text through `LLM.generate`, tokenizes it with the export's tokenizer files (stage 09 checks they match the source) and decodes greedily | vLLM API. **Not run with real vLLM in this repository** (no GPU), so this is unverified |
-| llama.cpp (GGUF) | **tokenization:** the rendered text is tokenized from the GGUF vocabulary (special tokens parsed, BOS per GGUF metadata), not by the Hugging Face tokenizer | pinned `d854d98`, `tools/completion/completion.cpp`: `common_tokenize(ctx, prompt, true, true)`, `add_bos = llama_vocab_get_add_bos(vocab)` |
+| llama.cpp (GGUF) | **tokenization:** the rendered text is tokenized from the GGUF vocabulary (special tokens parsed, BOS per GGUF metadata), not by the Hugging Face tokenizer. On a real Qwen3.5-0.8B GGUF the 33 prompt token ids were identical to the HF tokenizer's; the gap stays listed because it depends on the model's GGUF conversion | pinned `d854d98`, `tools/completion/completion.cpp`: `common_tokenize(ctx, prompt, true, true)`, `add_bos = llama_vocab_get_add_bos(vocab)` |
 | llama.cpp (GGUF) | **stop:** stops at the GGUF's end-of-generation tokens (`llama_vocab_is_eog`), which can include tokens that `generation_config.json` does not list | same file |
 | any | **context:** configured context (`vllm_max_model_len`, `gguf.smoke_context`) smaller than required. llama.cpp would shift the context instead of failing | recorded per run when it occurs |
 
@@ -166,7 +166,9 @@ llama.cpp is invoked as `llama-completion -f <prompt file> --no-escape --no-disp
 --temp 0 -s 0 -n N -c C`. `-f` drops one trailing newline, so the file holds the rendered text plus
 one newline. `--no-escape` stops `\n`-style sequences in the text from being rewritten (escape
 processing is on by default and also applies to `-f`). Both behaviors were read in the pinned
-source (`common/arg.cpp`).
+source (`common/arg.cpp`) and confirmed in a real run (implementation log, 2026-10-31). On an
+end-of-generation token, stdout ends with ` [end of text]`; the pipeline strips it and records
+`finish_reason: stop` (otherwise `length`).
 
 ## What these numbers do not mean
 

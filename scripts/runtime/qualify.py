@@ -85,8 +85,20 @@ def generate(model, tokenizer, prompts: list[str], max_new_tokens: int, enable_t
             else:
                 raise
         for i, prompt in enumerate(chunk):
+            # rendered/prompt_tokens: the comparison feeds this exact text to the other backends (docs/assessments.md)
+            n_prompt = int(inputs["attention_mask"][i].sum())
             if out is None:
-                rows.append({"prompt": prompt, "response": "", "finish_reason": finish_error, "new_tokens": 0, "total_tokens": None})
+                rows.append(
+                    {
+                        "prompt": prompt,
+                        "rendered": texts[i],
+                        "prompt_tokens": n_prompt,
+                        "response": "",
+                        "finish_reason": finish_error,
+                        "new_tokens": 0,
+                        "total_tokens": None,
+                    }
+                )
                 continue
             new = out[i, inputs["input_ids"].shape[1] :]
             text = tokenizer.decode(new, skip_special_tokens=True)
@@ -94,10 +106,12 @@ def generate(model, tokenizer, prompts: list[str], max_new_tokens: int, enable_t
             rows.append(
                 {
                     "prompt": prompt,
+                    "rendered": texts[i],
+                    "prompt_tokens": n_prompt,
                     "response": text,
                     "finish_reason": "length" if n_new >= max_new_tokens else "stop",
                     "new_tokens": n_new,
-                    "total_tokens": int(inputs["attention_mask"][i].sum()) + n_new,
+                    "total_tokens": n_prompt + n_new,
                 }
             )
     return rows

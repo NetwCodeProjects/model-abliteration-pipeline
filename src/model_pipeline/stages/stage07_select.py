@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .. import configspec
+from ..artifacts import assessments as A
 from ..artifacts.manifest import build_manifest
 from ..artifacts.safetensors_meta import dtype_summary, graft_tensors, tensor_diff, tensor_map
 from ..errors import ExitCode, PipelineError
@@ -25,11 +27,68 @@ def precision_dir(precision: str) -> str:
     return precision if precision in ("bf16", "f16", "f32") else "mixed"
 
 
+def promotion_record(
+    run, artifact_id: str, candidate: dict[str, Any], qualification: dict[str, Any] | None, promotion: dict[str, Any], grafted
+) -> dict[str, Any]:
+    """The decision-table outcome as an assessment record of the master (docs/assessments.md).
+
+    Qualification measured the candidate checkpoint; the master is that checkpoint plus any grafted
+    untouched source tensors, which the record states.
+    """
+    qualified = qualification is not None
+    versions = (qualification or {}).get("runtime_versions") or {}
+    inference = None
+    if qualified:
+        reload_ok = bool(qualification["independent"]["reload_ok"])
+        inference = {
+            "inference_passed": reload_ok,
+            "modalities_tested": ["text"] if reload_ok else [],
+            "backend": "transformers",
+            "backend_revision": f"transformers {versions.get('transformers')}",
+            "tested_context": qualification.get("max_total_tokens"),
+        }
+    provenance = (
+        f"{qualification['mode']}-qualification" if qualified else ("optimizer-only" if candidate["summary"].get("optimizer_scores") else "not-evaluated")
+    )
+    return A.new_record(
+        artifact_id=artifact_id,
+        role="master",
+        run_id=run.run_id,
+        stage_id="07",
+        kind="promotion",
+        suite=(qualification or {}).get("suite"),
+        runtime={
+            "backend": "transformers" if qualified else None,
+            "version": versions.get("transformers"),
+            "environment_fingerprint": A.environment_fingerprint(versions, [g.get("name") for g in run.probe.gpus() or []]) if qualified else None,
+        },
+        contract=(qualification or {}).get("generation_contract"),
+        redacted=bool(run.config.get("logging.redact_prompts")),
+        results={
+            "candidate_id": candidate["candidate_id"],
+            "measured_bytes": "candidate checkpoint (stage 06)" if qualified else None,
+            "grafted_source_tensors": len(grafted.get("grafted", [])),
+            "qualification_mode": qualification["mode"] if qualified else "off",
+            "independent": qualification["independent"] if qualified else None,
+            "optimizer_metrics": {k: candidate["summary"].get(k) for k in ("optimizer_refusal_rate", "optimizer_kl", "provenance")},
+            "promotion": {k: promotion[k] for k in ("outcome", "reason", "deciding_gate", "triggered_gates", "profile", "run_mode", "candidate_origin")},
+        },
+        checks=[A.check(g["gate"], g["result"], g["value"], g["threshold"]) for g in promotion["gates"]],
+        outcome=promotion["outcome"],
+        derives={"inference": inference, "evaluation": {"qualification_run_id": run.run_id if qualified else None, "metrics_provenance": provenance}},
+    )
+
+
 class SelectMasterStage(Stage):
     id = "07"
     name = "select_master"
     title = "Gate and promote master"
-    config_keys = ("selection", "storage.link_strategy", "abliteration.save_intermediate")
+    # Every selection key except export_gates, which only judges exports (stage 09) and must not re-promote a master.
+    config_keys = (
+        *(f"selection.{k}" for k in configspec.lookup(configspec.SPEC, "selection").fields if k != "export_gates"),
+        "storage.link_strategy",
+        "abliteration.save_intermediate",
+    )
 
     def dependencies(self, config) -> tuple[str, ...]:
         return ("05", "06")
@@ -115,7 +174,6 @@ class SelectMasterStage(Stage):
         except OSError:
             read_only = False
         engine_files = candidate["engine"]
-        qualified = qualification is not None
         manifest = build_manifest(
             run_id=run.run_id,
             model_family=config.get("model.family"),
@@ -130,24 +188,6 @@ class SelectMasterStage(Stage):
             fmt="safetensors",
             uri=str(dest),
             files=files,
-            inference={
-                "backend": "transformers",
-                "backend_revision": f"transformers {(qualification.get('runtime_versions') or {}).get('transformers')}",
-                "tested_context": qualification.get("max_total_tokens"),
-            }
-            if qualified
-            else None,
-            validation={
-                "integrity_passed": True,
-                "inference_passed": bool(qualification["independent"]["reload_ok"]) if qualified else None,
-                "modalities_tested": ["text"] if qualified and qualification["independent"]["reload_ok"] else [],
-            },
-            evaluation={
-                "qualification_run_id": run.run_id if qualified else None,
-                "metrics_provenance": f"{qualification['mode']}-qualification"
-                if qualified
-                else ("optimizer-only" if candidate["summary"].get("optimizer_scores") else "not-evaluated"),
-            },
             extensions={
                 "label": label,
                 "ungated": ungated,
@@ -170,12 +210,19 @@ class SelectMasterStage(Stage):
                 "limitations": candidate.get("limitations", []),
             },
         )
-        if manifest["validation"]["inference_passed"] is None:
-            manifest["inference"] = {"backend": None, "backend_revision": None, "tested_context": None}
         run.registry.register(manifest, "master", dest, self.id)
+        record = promotion_record(run, manifest["artifact_id"], candidate, qualification, promotion, grafted)
+        run.registry.attach("master", record)
         pointer = run.workspace / "models" / "selected" / run.run_id / "master.json"
         atomic_write_json(pointer, {"artifact_id": manifest["artifact_id"], "path": str(dest), "manifest": str(dest) + ".manifest.json"})
-        decision.update(promoted=True, master=str(dest), artifact_id=manifest["artifact_id"], storage_semantics=semantics, ungated=ungated)
+        decision.update(
+            promoted=True,
+            master=str(dest),
+            artifact_id=manifest["artifact_id"],
+            assessment_id=record["assessment_id"],
+            storage_semantics=semantics,
+            ungated=ungated,
+        )
         out = ctx.metrics_path("selection.json")
         atomic_write_json(out, decision)
         ctx.add_output(out, "selection")
@@ -185,7 +232,12 @@ class SelectMasterStage(Stage):
         ctx.input_artifacts.append(source["artifact_id"])
         ctx.output_artifacts.append(manifest["artifact_id"])
         ctx.diagnostics.update(
-            master=str(dest), artifact_id=manifest["artifact_id"], ungated=ungated, promotion=promotion["outcome"], precision=summary["precision"]
+            master=str(dest),
+            artifact_id=manifest["artifact_id"],
+            assessment_id=record["assessment_id"],
+            ungated=ungated,
+            promotion=promotion["outcome"],
+            precision=summary["precision"],
         )
         if not config.get("abliteration.save_intermediate") and semantics == "copy":
             remove_tree(candidate["path"])

@@ -53,6 +53,8 @@ def collect(run: Run) -> dict[str, Any]:
                 "label": (manifest.get("extensions") or {}).get("label"),
                 "promotion": (manifest.get("extensions") or {}).get("promotion"),
                 "evidence_status": (manifest.get("extensions") or {}).get("evidence_status"),
+                "derived_status": manifest.get("derived_status"),
+                "assessments": len(manifest.get("assessments") or []),
             }
     for art in artifacts.values():
         if not art["evidence_status"]:
@@ -89,6 +91,7 @@ def collect(run: Run) -> dict[str, Any]:
         "selection": _maybe(metrics_dir / "selection.json"),
         "quantization": _maybe(metrics_dir / "quantization.json"),
         "verification": _maybe(metrics_dir / "verification.json"),
+        "comparison": _maybe(metrics_dir / "comparison.json"),
         "time": {
             "measured_stage_seconds": round(measured, 1),
             "estimated_cost_usd": round(measured / 3600 * rate, 2) if rate is not None else None,
@@ -137,6 +140,46 @@ def usage_examples(artifacts: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _with_delta(entry: dict[str, Any], name: str) -> str:
+    pair = entry.get(name)
+    if not pair:
+        return "-"
+    delta = ((entry.get("deltas") or {}).get(name) or {}).get("delta")
+    return f"{pair['count']}/{pair['of']}" + (f" ({delta:+d})" if delta is not None else "")
+
+
+def comparison_section(doc: dict[str, Any] | None) -> list[str]:
+    if not doc:
+        return []
+    base = doc["baseline"]
+    out = [
+        "",
+        "## Master vs export comparison",
+        "",
+        f"Exported runtime vs baseline runtime (transformers, {base['role']} `{base['artifact_id']}`): suite `{doc['suite']['id']}` "
+        f"v{doc['suite']['version']}, the same rendered prompts on every backend; export gates: {(doc.get('export_gates') or {}).get('mode')}. "
+        "Counts are correct/graded, refused/prompts and responses with integrity issues/responses; deltas are export minus baseline.",
+        "",
+        "| Artifact | Backend | Benign correct | Held-out refused | Integrity issues | Outcome | Contract gaps |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    if base.get("measured"):
+        cells = " | ".join(_with_delta(base, k) for k in ("benign_correct", "heldout_refused", "integrity_issues"))
+        out.append(f"| baseline ({base['role']}) | transformers | {cells} | - | - |")
+    else:
+        out.append(f"| baseline ({base['role']}) | transformers | unmeasured: {base.get('reason')} | | | | |")
+    for role, entry in sorted((doc.get("exports") or {}).items()):
+        gaps = ", ".join(g["field"] for g in entry.get("contract_gaps") or []) or "-"
+        if entry.get("deltas") is None:
+            out.append(f"| {role} | {entry.get('backend')} | unmeasured: {entry.get('unmeasured_reason')} | | | {entry['outcome']} | {gaps} |")
+        else:
+            cells = " | ".join(_with_delta(entry, k) for k in ("benign_correct", "heldout_refused", "integrity_issues"))
+            out.append(f"| {role} | {entry.get('backend')} | {cells} | {entry['outcome']} | {gaps} |")
+    if doc.get("redacted"):
+        out += ["", "Prompts and responses are redacted (hashes only; exact text replay unavailable)."]
+    return out
+
+
 def render_markdown(summary: dict[str, Any], final: bool) -> str:
     out = [f"# Run report {summary['run_id']}", ""]
     if not final:
@@ -180,6 +223,11 @@ def render_markdown(summary: dict[str, Any], final: bool) -> str:
     out += ["", "### Evidence status", ""]
     for role, art in sorted(summary["artifacts"].items()):
         out.append(f"- **{role}**: {art.get('evidence_status') or '-'}")
+        status = art.get("derived_status")
+        if status:
+            parts = ", ".join(f"{part} `{aid}`" if aid else f"{part}: registration" for part, aid in status.items())
+            out.append(f"  - status from assessment records ({art['assessments']} in `assessments/{art['artifact_id']}/`): {parts}")
+    out += comparison_section(summary.get("comparison"))
     cand = summary.get("candidate")
     if cand:
         s = cand["summary"]

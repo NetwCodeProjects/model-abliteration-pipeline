@@ -331,6 +331,8 @@ def env(tmp_path, monkeypatch) -> Env:
         "FAKE_TRIALS_FILE",
         "FAKE_KILL_PARENT_AT",
         "FAKE_KL_STEP",
+        "FAKE_DEGRADE",
+        "FAKE_BASELINE_FAIL",
     ):
         monkeypatch.delenv(var, raising=False)
     return Env(tmp_path, monkeypatch)

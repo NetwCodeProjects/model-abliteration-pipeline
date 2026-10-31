@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/model-abliteration-pipeline/assessment.schema.json",
+  "title": "Project A assessment record",
+  "description": "One append-only record per measurement of an artifact (docs/assessments.md). Records are never rewritten; manifests derive their status from them.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "assessment_id",
+    "artifact_id",
+    "role",
+    "run_id",
+    "stage_id",
+    "kind",
+    "created_utc",
+    "suite",
+    "runtime",
+    "generation_contract",
+    "contract_gaps",
+    "redaction",
+    "results",
+    "checks",
+    "outcome",
+    "derives"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "assessment_id": {"type": "string", "pattern": "^asm-[0-9a-f]{24}$", "description": "sha256 of the canonical record without its id (first 24 hex digits)."},
+    "artifact_id": {"type": "string", "pattern": "^art-[0-9a-f]{24}$"},
+    "role": {"type": "string", "minLength": 1, "description": "Role of the artifact in the run that wrote the record: source, master, export:<format>."},
+    "run_id": {"type": "string", "minLength": 1},
+    "stage_id": {"type": "string", "minLength": 2},
+    "kind": {"enum": ["promotion", "verification", "comparison"]},
+    "created_utc": {"type": "string", "minLength": 1},
+    "suite": {
+      "type": ["object", "null"],
+      "required": ["id", "version", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["backend", "version", "environment_fingerprint"],
+      "additionalProperties": false,
+      "properties": {
+        "backend": {"type": ["string", "null"]},
+        "version": {"type": ["string", "null"]},
+        "environment_fingerprint": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "generation_contract": {"type": ["object", "null"], "description": "docs/evaluation.md#comparison-contract"},
+    "contract_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "detail", "basis"],
+        "additionalProperties": false,
+        "properties": {"field": {"type": "string"}, "detail": {"type": "string"}, "basis": {"type": "string"}}
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "required": ["redacted", "exact_text_replay"],
+      "additionalProperties": false,
+      "properties": {
+        "redacted": {"type": "boolean"},
+        "exact_text_replay": {"enum": ["available", "unavailable (redacted)", "not applicable"]}
+      }
+    },
+    "results": {"type": "object"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check", "result", "value", "threshold"],
+        "additionalProperties": false,
+        "properties": {
+          "check": {"type": "string"},
+          "result": {"enum": ["passed", "failed", "unmeasured", "disabled"]},
+          "value": {},
+          "threshold": {},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "outcome": {"type": "string", "minLength": 1},
+    "derives": {
+      "type": "object",
+      "required": ["validation", "inference", "evaluation"],
+      "additionalProperties": false,
+      "properties": {
+        "validation": {"type": ["object", "null"]},
+        "inference": {"type": ["object", "null"]},
+        "evaluation": {"type": ["object", "null"]}
+      }
+    }
+  }
+}

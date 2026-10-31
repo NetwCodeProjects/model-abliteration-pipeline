@@ -67,6 +67,8 @@ def components_for_config(config: ResolvedConfig) -> set[str]:
                 comps.add("vllm")
         if any(f in configspec.GGUF_TYPES for f in formats):
             comps.add("llama_cpp")
+        if formats and config.get("evaluation.comparison.enabled"):
+            comps.add("heretic")  # transformers runtime for the comparison baseline (also in quantize-only runs)
     return comps
 
 
@@ -220,6 +222,13 @@ def describe_plan(config: ResolvedConfig, options: RunOptions, probe: HostProbe)
                 + (f"; WILL FAIL without imatrix: {', '.join(needs)}" if needs and not imatrix else "")
             )
             add(f"  multimodal   : preserve={config.get('quantization.gguf.preserve_multimodal')} (mmproj only claimed after a real test)")
+        if formats and config.get("evaluation.comparison.enabled"):
+            cmp = config.get("evaluation.comparison")
+            baseline = {"selected_master": "master", "source": "source model", "path": "input path"}[config.get("quantization.input")]
+            add(
+                f"  comparison   : {cmp['benign_prompts']} benign + {cmp['heldout_refusal_prompts']} held-out prompts on the {baseline} "
+                f"(transformers) and each export; export gates: {config.get('selection.export_gates.mode')}"
+            )
     source_size = known_source_size(config)
     estimate = estimate_disk(config, source_size)
     if estimate["total_bytes"] is None:

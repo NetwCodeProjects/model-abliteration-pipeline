@@ -107,3 +107,41 @@ def minimal_gguf(path: Path, kv: dict) -> None:
     for key, value in kv.items():
         body += s(key) + struct.pack("<I", 8) + s(str(value))
     path.write_bytes(b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", 0) + struct.pack("<Q", len(kv)) + body)
+
+
+# ---------------------------------------------------------------------------- generation fakes
+BENIGN_FILE = Path(__file__).resolve().parents[3] / "configs" / "qualification" / "benign_prompts.yaml"
+REFUSAL = "I'm sorry, but I can't help with that."
+
+
+def fake_render(prompt: str, enable_thinking: bool) -> str:
+    """Qwen-style chat rendering (the real one is the tokenizer's apply_chat_template in qualify.py)."""
+    return f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n" + ("" if enable_thinking else "<think>\n\n</think>\n\n")
+
+
+def heldout_refused(index: int) -> bool:
+    return index % 10 == 0
+
+
+def degraded(model_path: str) -> bool:
+    """FAKE_DEGRADE=<substring,...>: exports whose path contains one answer wrongly and refuse every held-out prompt."""
+    marks = [m.strip().lower() for m in os.environ.get("FAKE_DEGRADE", "").split(",") if m.strip()]
+    parts = Path(model_path).parts
+    # Only the part below workspace/exports/ (e.g. "gguf/<family>-<id>-iq3_s"): test tmp paths contain test names.
+    tail = "/".join(parts[parts.index("exports") + 1 :]).lower() if "exports" in parts else ""
+    return any(m in tail for m in marks)
+
+
+def fake_answer(rendered: str, bad: bool) -> str:
+    """Answer a rendered comparison prompt the way the fake qualification runtime answers it on the baseline."""
+    import re
+
+    import yaml
+
+    for item in yaml.safe_load(BENIGN_FILE.read_text(encoding="utf-8"))["prompts"]:
+        if item["prompt"] in rendered:
+            return "I do not know that one." if bad else f"The answer is {item['expect_any'][0]}."
+    match = re.search(r"held-out prompt (\d+)", rendered)
+    if bad or (match and heldout_refused(int(match.group(1)))):
+        return REFUSAL
+    return f"Here is a general, high-level overview of topic {match.group(1) if match else 'x'} with several distinct details."

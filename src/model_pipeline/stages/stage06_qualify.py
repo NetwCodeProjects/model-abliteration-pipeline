@@ -11,21 +11,24 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import ExitCode, PipelineError
-from ..evaluation.qualification import load_benign_prompts, score_results
-from ..fsutil import atomic_write_json, read_json, sha256_file, sha256_text
+from ..evaluation import comparison as C
+from ..evaluation.qualification import SCORER_ID, load_benign_prompts, score_results
+from ..fsutil import atomic_write_json, read_json, sha256_file, sha256_obj, sha256_text
 from .base import Stage, StageContext
 
 
-def run_generation_script(ctx: StageContext, spec: dict[str, Any], name: str, timeout_minutes: float = 240) -> dict[str, Any]:
+def run_generation_script(ctx: StageContext, spec: dict[str, Any], name: str, timeout_minutes: float = 240, work_dir: Path | None = None) -> dict[str, Any]:
+    """Run qualify.py; ``work_dir`` (from ``ctx.generation_dir``) receives the spec, raw output and logs."""
+    work_dir = work_dir or ctx.log_dir
     record = ctx.run.components(ctx.log_dir).get("heretic")
-    spec_path = ctx.log_dir / f"{name}-spec.json"
-    out_path = ctx.log_dir / f"{name}-raw.json"
+    spec_path = work_dir / f"{name}-spec.json"
+    out_path = work_dir / f"{name}-raw.json"
     atomic_write_json(spec_path, spec)
     result = ctx.run.runner.run(
         [*record.script("qualify.py"), "--spec", str(spec_path), "--out", str(out_path)],
         cwd=None,
         env=ctx.run.tool_env(record),
-        log_dir=ctx.log_dir,
+        log_dir=work_dir,
         name=name,
         timeout_seconds=timeout_minutes * 60,
     )
@@ -36,7 +39,7 @@ def run_generation_script(ctx: StageContext, spec: dict[str, Any], name: str, ti
             ExitCode.GATE if result.ok else ExitCode.ENGINE,
             "E_QUALIFY_RUNTIME",
             f"Qualification runtime produced no result (exit {result.returncode})",
-            hint=f"{result.stderr_log}: {' | '.join(result.tail[-5:])}",
+            hint=f"{result.stderr_log}: {' | '.join(result.tail[-5:])}" if work_dir == ctx.log_dir else "tool logs were discarded (logging.redact_prompts)",
         )
     raw = read_json(out_path)
     raw["_runtime"] = {"returncode": result.returncode, "duration_s": result.duration_s, "versions": record.versions}
@@ -106,19 +109,36 @@ class QualifyStage(Stage):
             "trust_remote_code": config.get("model.trust_remote_code"),
             "hf_cache": str(run.cache_root / "hf" / "hub"),
         }
-        raw = run_generation_script(ctx, spec, "qualify")
+        with ctx.generation_dir("qualify") as work:
+            raw = run_generation_script(ctx, spec, "qualify", work_dir=work)
         scored = score_results(raw, [m.lower() for m in config.get("evaluation.refusal_markers")])
-        redact = config.get("logging.redact_prompts")
+        redact = ctx.redact
         records = []
         for row in raw.get("benign", []) + raw.get("heldout_refusal", []):
             item = {k: row.get(k) for k in ("id", "kind", "finish_reason", "new_tokens")}
             if redact:
-                item.update(prompt_sha256=sha256_text(row.get("prompt", "")), response_sha256=sha256_text(row.get("response", "")))
+                prompt, response = row.get("prompt", ""), row.get("response", "")
+                item.update(prompt_sha256=sha256_text(prompt), prompt_chars=len(prompt), response_sha256=sha256_text(response), response_chars=len(response))
             else:
                 item.update(prompt=row.get("prompt"), response=row.get("response"))
             records.append(item)
+        markers = [m.lower() for m in config.get("evaluation.refusal_markers")]
+        suite = {
+            "id": f"{mode}-qualification",
+            "version": SCORER_ID,
+            "sha256": sha256_obj(
+                {
+                    "benign": [[p["id"], sha256_text(p["prompt"]), p["expect_any"]] for p in benign],
+                    "heldout": [spec["heldout_refusal_specs"], heldout_limit],
+                    "extended_kl": [spec["extended_kl"], spec["heldout_harmless_specs"] if spec["extended_kl"] else None],
+                    "markers": markers,
+                }
+            ),
+        }
         result = {
             "mode": mode,
+            "suite": suite,
+            "generation_contract": C.contract(spec, raw, bool(redact)),
             "candidate": candidate["candidate_id"],
             "imported_optimizer_metrics": candidate["summary"],
             "independent": scored["metrics"],
@@ -140,6 +160,7 @@ class QualifyStage(Stage):
             "max_total_tokens": raw.get("max_total_tokens"),
             "runtime_versions": raw["_runtime"]["versions"],
             "records": records,
+            "redacted": bool(redact),
             "caveats": [
                 "Fast qualification is a smoke test (tens of prompts); it is not a statistically meaningful evaluation.",
                 "Refusals are detected with a keyword heuristic on held-out prompts; it can miss soft refusals and flag benign phrasing.",

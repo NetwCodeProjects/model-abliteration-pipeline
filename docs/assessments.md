@@ -41,17 +41,25 @@ two records.
 
 ## Derived status in the manifest
 
-`validation`, `inference` and `evaluation` keep their schema 1.0 meaning. Their values are computed:
-start from the registration defaults (every file hashed, no loader test, `not-evaluated`) and apply
-the `derives` of every record of the artifact in `(created_utc, assessment_id)` order, so the latest
-record that measured a part wins. `derived_status` names the record behind each part (`null` = the
-registration default). `assessments` lists every record of the artifact.
+`validation`, `inference` and `evaluation` keep their schema 1.0 meaning, but their values are
+computed. Start from the manifest's current values: the registration defaults (every file hashed, no
+loader test, `not-evaluated`), or the values a schema 1.0 manifest already held. Then apply the
+`derives` of every record of the artifact in `(created_utc, assessment_id)` order, so the latest
+record that measured a part wins. The fold is idempotent.
 
-| Kind | Establishes |
-|---|---|
-| `promotion` | `evaluation` (qualification run id and provenance, or `optimizer-only`). When the candidate was qualified, also `validation` (inference passed from the reload, `text`) and `inference` (transformers) |
-| `verification` | `validation.integrity_passed` from the re-hash. When a representative loader test ran, also the loader result, the tested modalities and `inference`. For exports only, `evaluation` → `integrity-only` |
-| `comparison` | nothing; it is listed in `assessments` and shown in the report |
+`derived_status` names the record behind each of three parts (`null` = registration default or a
+carried-over 1.0 value):
+
+| Part | Manifest fields | Established by |
+|---|---|---|
+| `validation` | `validation.integrity_passed` | `verification` (file re-hash) |
+| `inference` | `validation.inference_passed`, `validation.modalities_tested`, `inference.*` | `verification` when a representative loader test ran; `promotion` when the candidate was qualified (reload, `text`, transformers) |
+| `evaluation` | `evaluation.*` | `promotion` (qualification run id and provenance, or `optimizer-only`); `verification` of an export with a loader test (`integrity-only`) |
+
+A `comparison` record establishes no part. It is listed in `assessments` and shown in the report.
+Because the parts are separate, a later run whose loader test did not run (for example
+`verify_backend: none`) updates the integrity status but keeps the earlier loader result. The
+manifest says which record that result came from.
 
 Manifests are recomputed from the store on every registration and every new record, under a
 per-artifact lock (`workspace/assessments/<artifact_id>/.lock`), so a re-registration never drops
@@ -139,7 +147,7 @@ Comparison failures are not errors in report mode. In enforce mode they use the 
 
 | Behavior | Covered by |
 |---|---|
-| per-export deltas with denominators; quantize-only source baseline; missing baseline → `unmeasured`; two runs → two records, neither overwritten; redaction leaves no prompt or response text in the workspace | `tests/integration/test_assessments.py` (fake runtimes) |
+| per-export deltas with denominators; quantize-only source baseline; missing baseline → `unmeasured`; two runs → two records, neither overwritten; redaction leaves no prompt or response text in the workspace | `tests/integration/test_assessment_pipeline.py` (fake runtimes) |
 | record ids, exclusive create, derivation order, schema | `tests/unit/test_assessments.py` |
-| llama.cpp flags for the rendered prompt (`-f`, `--no-escape`, `--no-display-prompt`, `-no-cnv`) | read in the pinned source (`d854d98`, `common/arg.cpp`, `tools/completion/completion.cpp`); see the implementation log |
+| llama.cpp flags for the rendered prompt (`-f`, `--no-escape`, `--no-display-prompt`, `-no-cnv`) | pinned source (`d854d98`) and one real run on a Qwen3.5-0.8B GGUF: prompt token ids identical to the HF tokenizer's, no prompt echo, ` [end of text]` marker (implementation log) |
 | vLLM `LLM.generate` on rendered text | not run with real vLLM here (no GPU); fake only |

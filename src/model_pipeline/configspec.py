@@ -291,6 +291,19 @@ SPEC = S(
                 "max_new_tokens": F("integer", 256, minimum=1),
                 "seed": F("integer", 0),
                 "refusal_markers": F("array", list(DEFAULT_REFUSAL_MARKERS), items=F("string")),
+                "comparison": S(
+                    {
+                        "enabled": F(
+                            "boolean",
+                            True,
+                            description="Stage 09: run the comparison suite on the baseline (master, or source for quantize-only) and on every export.",
+                        ),
+                        "benign_prompts": F("integer", 8, minimum=1, maximum=100, description="First N 'fast' prompts of benign_prompts_file."),
+                        "heldout_refusal_prompts": F("integer", 4, minimum=0, maximum=100, description="First N held-out refusal prompts."),
+                        "max_new_tokens": F("integer", 128, minimum=1, description="Same limit on every backend (generation contract)."),
+                    },
+                    description="Master vs export comparison (docs/assessments.md#comparison).",
+                ),
             },
             description="Published baselines and lightweight qualification (Project B does deep evaluation).",
         ),
@@ -334,6 +347,24 @@ SPEC = S(
                 "allow_ungated_promotion": F("boolean", False, description="Shorthand for override_gates = every gate (master is labelled 'ungated')."),
                 "graft_missing_source_tensors": F(
                     "array", [], items=F("string"), description="Tensor-name prefixes absent from the candidate to copy verbatim from the source (e.g. 'mtp.')."
+                ),
+                "export_gates": S(
+                    {
+                        "mode": F(
+                            "string",
+                            "report",
+                            enum=("report", "enforce"),
+                            description="report: comparison outcomes are recorded and warned about; enforce: a failed or unmeasured comparison fails the export.",
+                        ),
+                        "max_benign_correct_drop": F(
+                            "number", 0.25, nullable=True, minimum=0, maximum=1, description="Baseline minus export benign correct rate; null disables."
+                        ),
+                        "max_heldout_refusal_increase": F(
+                            "number", 0.25, nullable=True, minimum=0, maximum=1, description="Export minus baseline held-out refusal rate; null disables."
+                        ),
+                        "require_integrity": F("boolean", True, description="Fail when a prompt clean on the baseline has integrity issues on the export."),
+                    },
+                    description="Checks on the master vs export comparison (stage 09; not part of stage 07's key).",
                 ),
             },
             description="Gates for promoting a candidate to the master checkpoint.",
@@ -427,7 +458,12 @@ SPEC = S(
         "logging": S(
             {
                 "console_level": F("string", "info", enum=("debug", "info", "warning"), operational=True),
-                "redact_prompts": F("boolean", False, description="Store hashes instead of prompt/response text in qualification records."),
+                "redact_prompts": F(
+                    "boolean",
+                    False,
+                    description="Store hashes and lengths instead of prompt, rendered-template and response text in qualification, assessment and "
+                    "comparison records; generation inputs, outputs and tool logs go to a temporary directory outside the workspace.",
+                ),
                 "resource_sample_seconds": F("integer", 15, minimum=1, operational=True),
             }
         ),

@@ -210,7 +210,9 @@ def test_manifest_refuses_placeholders(tmp_path):
         build_manifest(**bad)
 
 
-def test_registry_register_update_and_id_guard(tmp_path):
+def test_registry_register_attach_and_id_guard(tmp_path):
+    from model_pipeline.artifacts import assessments as A
+
     reg = ArtifactRegistry(tmp_path / "run", tmp_path / "ws")
     files = [{"relative_path": "a", "size_bytes": 1, "sha256": "c" * 64}]
     manifest = build_manifest(**manifest_kwargs(files))
@@ -218,10 +220,22 @@ def test_registry_register_update_and_id_guard(tmp_path):
     reg.register(manifest, "export:test", target, "08")
     assert (tmp_path / "ws" / "manifests" / f"{manifest['artifact_id']}.json").exists()
     assert target.with_name("x.manifest.json").exists()
-    manifest["validation"]["inference_passed"] = True
-    reg.update("export:test", manifest)
-    assert reg.get("export:test")["manifest_data"]["validation"]["inference_passed"] is True
+    loader = {"inference_passed": True, "modalities_tested": ["text"], "backend": "b", "backend_revision": "b 1", "tested_context": 64}
+    record = A.new_record(
+        artifact_id=manifest["artifact_id"],
+        role="export:test",
+        run_id="r1",
+        stage_id="09",
+        kind="verification",
+        results={},
+        checks=[A.check("loader", "passed", True)],
+        derives={"validation": {"integrity_passed": True}, "inference": loader},
+    )
+    reg.attach("export:test", record)
+    stored = reg.get("export:test")["manifest_data"]
+    assert stored["validation"]["inference_passed"] is True and stored["schema_version"] == "1.1"
+    assert stored["derived_status"] == {"validation": record["assessment_id"], "inference": record["assessment_id"], "evaluation": None}
     other = build_manifest(**manifest_kwargs([{"relative_path": "a", "size_bytes": 1, "sha256": "d" * 64}]))
     with pytest.raises(PipelineError) as err:
-        reg.update("export:test", other)
-    assert err.value.error_id == "E_ARTIFACT_ID_CHANGED"
+        reg.attach("export:test", {**record, "artifact_id": other["artifact_id"]})
+    assert err.value.error_id == "E_ARTIFACT_UNKNOWN"

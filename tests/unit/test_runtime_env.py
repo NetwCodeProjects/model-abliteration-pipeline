@@ -181,7 +181,10 @@ def test_dependency_graph_by_mode(tmp_path):
     assert stage_by_ref("08").dependencies(qonly) == ("01", "02")
     assert stage_by_ref("05").applicable(qonly)[0] is False
     assert components_for_config(full) == {"heretic", "fp8", "vllm", "llama_cpp"}
-    assert components_for_config(qonly) == {"fp8", "vllm", "llama_cpp"}
+    # heretic's environment is the transformers runtime of the comparison baseline (the source, in quantize-only)
+    assert components_for_config(qonly) == {"heretic", "fp8", "vllm", "llama_cpp"}
+    no_cmp = cfg(tmp_path, abliteration={"enabled": False}, evaluation={"comparison": {"enabled": False}})
+    assert components_for_config(no_cmp) == {"fp8", "vllm", "llama_cpp"}
     assert affected_stages(["quantization.formats"]) == ["08", "09", "10"]
     assert affected_stages(["model.url"])[0] == "02"
 

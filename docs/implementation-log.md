@@ -245,3 +245,52 @@ repeatable; values are YAML scalars or lists, and every key and type passes the 
 as the YAML (exit 3). A malformed pair, or a key also set by a dedicated flag or given twice, is a usage
 error (`E_SET_INVALID`, exit 2). On `--resume` a changed key needs `--fork`, as with any override. The
 fork selection tests now use the real flag instead of patching `cli.to_overrides`.
+
+## 2026-10-31 — Step 5: assessment records, master vs export comparison, redaction
+
+Design first: `docs/assessments.md` (commit `704ed79`), comparison contract in `docs/evaluation.md`,
+schema history in `docs/artifact-schema.md`.
+
+- Measurements are append-only assessment records (`workspace/assessments/<artifact_id>/`, exclusive
+  create, run copy). Kinds: `promotion` (stage 07), `verification` and `comparison` (stage 09).
+  `ArtifactRegistry.update` is gone; `attach` writes a record and re-derives the manifest under a
+  per-artifact lock. Manifest schema 1.1 (additive): `assessments`, `derived_status`.
+- Stage 09 compares the baseline (master; source or input path for quantize-only) with every export
+  on one suite whose prompts are rendered once by the baseline tokenizer. Counts with denominators,
+  deltas, export gates (`selection.export_gates`, report by default), `unmeasured` without a baseline.
+- `--set` (approved earlier today) lets a fork change export gates; they are excluded from stage
+  07's key, so only stages 09–10 re-run.
+
+Findings:
+
+25. **The GGUF loader smoke test applies no chat template** (`llama-completion -p … -no-cnv`), while the
+    vLLM smoke test uses `llm.chat` with the model's template and its default thinking mode, and
+    transformers forces `enable_thinking=false`. The three loader tests never saw the same input. The
+    comparison therefore renders each prompt once (baseline tokenizer) and passes the text unchanged
+    to vLLM (`LLM.generate`) and llama.cpp (`-f`). The loader smoke tests are unchanged and their
+    records say which template each one used.
+26. **llama.cpp prompt handling at `d854d98`** (source, then a real run): `-f` drops one trailing
+    newline, so the file holds the rendered text plus one newline. Escape processing is on by
+    default and also applies to `-f`, so `--no-escape` is needed. `--no-display-prompt` keeps the
+    prompt out of stdout, which then ends with ` [end of text]` after an end-of-generation token.
+    Real check (WSL, CPU, Qwen3.5-0.8B BF16 GGUF from `/mnt/e/LLM-models`, prompt rendered by the
+    tiny Qwen3.5 tokenizer with `enable_thinking=False` and containing a literal `a\nb`): exit 0,
+    stdout `Paris [end of text]`, prompt not echoed, the 33 prompt token ids (`--verbose-prompt`)
+    identical to the HF tokenizer's ids, including `<think>`, `</think>` and the trailing `\n\n`.
+27. **Redaction covered only `qualification.json`.** The spec and raw files of every generation step,
+    the generating tools' stdout logs (llama.cpp echoes the prompt) and stage 09's smoke `samples`
+    held prompt and response text in the workspace. All generation I/O now goes through
+    `StageContext.generation_dir`, a temporary directory outside the workspace when redaction is on.
+    The integration test scans the whole workspace for prompt and response text.
+28. **Stage 07's key covered all of `selection`**, so any new selection key would re-promote the
+    master. Its key now lists the selection keys explicitly, without `export_gates`. Existing runs
+    see a changed stage 07 key once (re-promotion on resume).
+29. **Quantize-only runs now provision the `heretic` environment** when comparison is enabled: it is
+    the transformers runtime that measures the source baseline. `evaluation.comparison.enabled: false`
+    avoids it.
+
+Verification: unit tests (`tests/unit/test_assessments.py`) and fake-runtime integration tests
+(`tests/integration/test_assessment_pipeline.py`) for every acceptance criterion. Real tools: only the
+llama.cpp invocation (finding 26). The vLLM path and a full stage 09 comparison have not run with real
+tools (no GPU here).
+

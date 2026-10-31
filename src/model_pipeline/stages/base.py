@@ -7,12 +7,15 @@ unchanged, and ``validate_outputs`` still passes. Directory existence alone neve
 
 from __future__ import annotations
 
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..errors import ExitCode, PipelineError
-from ..fsutil import atomic_write_json, read_json, sha256_obj
+from ..fsutil import atomic_write_json, read_json, remove_tree, sha256_obj
 from ..telemetry import utc_now
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -64,6 +67,27 @@ class StageContext:
 
     def metrics_path(self, name: str) -> Path:
         return self.run.run_dir / "metrics" / name
+
+    @property
+    def redact(self) -> bool:
+        return bool(self.config.get("logging.redact_prompts"))
+
+    @contextmanager
+    def generation_dir(self, name: str) -> Iterator[Path]:
+        """Where a generation step writes its spec, raw output, prompt files and tool logs.
+
+        With ``logging.redact_prompts`` these hold prompt and response text, so they go to a temporary
+        directory outside the workspace that is deleted afterwards (docs/assessments.md#redaction).
+        """
+        if not self.redact:
+            yield self.log_dir
+            return
+        private = Path(tempfile.mkdtemp(prefix=f"pa-redacted-{self.stage.id}-"))
+        try:
+            yield private
+        finally:
+            remove_tree(private)
+            self.diagnostics.setdefault("generation_files_discarded", []).append(f"{name} (logging.redact_prompts)")
 
 
 class Stage:

@@ -93,7 +93,7 @@ def test_real_heretic_cpu_end_to_end(tmp_path):
         # Random weights produce word salad: the integrity check (and so stage 09's master smoke test, which reuses
         # stage 06) correctly fails while the reload itself succeeds. Nothing else may be partial.
         verification = json.loads(next((run / "receipts").glob("09-*.json")).read_text())["diagnostics"]
-        assert verification == {"inference_failures": ["master"], "integrity_failures": []}, out.getvalue()
+        assert (verification["inference_failures"], verification["integrity_failures"]) == (["master"], []), out.getvalue()
         assert qual["independent"]["reload_ok"] is True and qual["independent"]["integrity_passed"] is False
     else:
         assert code == 0, out.getvalue()
@@ -121,6 +121,16 @@ def test_real_heretic_cpu_end_to_end(tmp_path):
     master = json.loads(Path(arts["master"]["manifest"]).read_text())
     source = json.loads(Path(arts["source"]["manifest"]).read_text())
     assert master["parent_artifact_id"] == source["artifact_id"] and master["source_revision"] == TINY_SHA
+    # Step 5 with the real transformers runtime: the master is the comparison baseline, rendered by its own tokenizer.
+    assert [r["kind"] for r in master["assessments"]][:1] == ["promotion"] and master["derived_status"]["evaluation"]
+    comparison = json.loads((run / "metrics" / "comparison.json").read_text()) if formats else None
+    if comparison:
+        assert comparison["baseline"]["role"] == "master" and comparison["baseline"]["measured"] is True
+        prompts = comparison["contract"]["prompts"]
+        assert len(prompts) == 12 and all(p["rendered_chars"] > p["prompt_chars"] for p in prompts), "real chat-template rendering"
+        assert comparison["contract"]["chat_template"]["template_sha256"] and comparison["contract"]["context"]["max_prompt_tokens"]
+        fp8 = comparison["exports"]["export:fp8"]
+        assert fp8["outcome"] == "unmeasured" and "verify_backend=none" in fp8["unmeasured_reason"]
     # A fork with a larger budget continues its copy of the study with the real engine (set-settings for a
     # search-only continue, 3 more trials, then export-only); the parent's study is never written.
     parent_files = {f: f.read_bytes() for f in Path(receipt["diagnostics"]["study_dir"]).rglob("*.json*")}
@@ -158,6 +168,7 @@ def test_real_heretic_cpu_end_to_end(tmp_path):
                 "fork": fork_result,
                 "precision": master["precision"],
                 "tensor_diff": master["extensions"]["tensor_diff_vs_source"]["missing_prefixes"],
+                "comparison_baseline": comparison and {k: comparison["baseline"].get(k) for k in ("benign_correct", "heldout_refused", "integrity_issues")},
                 "optimizer": candidate["summary"]["optimizer_refusal_rate"],
                 "kl": candidate["summary"]["optimizer_kl"],
                 "formats": formats,

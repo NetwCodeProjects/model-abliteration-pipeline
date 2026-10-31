@@ -14,6 +14,12 @@ def manifests(env, run_dir):
     return {role: json.loads(Path(a["manifest"]).read_text()) for role, a in env.artifacts(run_dir).items()}
 
 
+def latest_record(env, manifest, kind):
+    """The newest assessment record of ``kind`` for a manifest's artifact (docs/assessments.md)."""
+    ref = [r for r in manifest["assessments"] if r["kind"] == kind][-1]
+    return json.loads((env.workspace / "assessments" / manifest["artifact_id"] / f"{ref['assessment_id']}.json").read_text())
+
+
 def history(receipt):
     return [json.loads(line) for line in Path(receipt["diagnostics"]["history"]).read_text().splitlines()]
 
@@ -23,7 +29,8 @@ def test_quantize_only_skips_heretic(env):
     code, out = env.run("--quantize-only")
     assert code == 0, out
     run = env.latest_run()
-    assert env.count("heretic") == 0 and env.count("qualify") == 0
+    # No abliteration and no qualification; the one transformers run is the comparison baseline on the source (Step 5).
+    assert env.count("heretic") == 0 and env.count("qualify") == 1
     for stage in ("03", "04", "05", "06", "07"):
         receipt = env.receipt(run, stage)
         assert receipt["outcome"] == "skipped" and receipt["diagnostics"]["not_applicable"], stage
@@ -359,7 +366,12 @@ def test_fp8_loader_test_on_a100_is_not_representative(env, monkeypatch, fails):
     run = env.latest_run()
     fp8 = manifests(env, run)["export:fp8"]
     assert fp8["validation"]["inference_passed"] is None
-    smoke = fp8["extensions"]["verification"]["smoke"]
+    verification = latest_record(env, fp8, "verification")
+    smoke = verification["results"]["smoke"]
     assert smoke["ran"] and smoke["representative"] is False and smoke["passed"] is (not fails)
+    assert [c["result"] for c in verification["checks"]] == ["passed", "unmeasured"] and fp8["derived_status"]["inference"] is None
+    comparison = latest_record(env, fp8, "comparison")
+    assert "runtime" in [g["field"] for g in comparison["contract_gaps"]], "the weight-only fallback is a reported contract gap"
+    assert comparison["outcome"] == ("failed" if fails else "passed")
     preflight = json.loads((run / "metrics" / "preflight.json").read_text())
     assert [f["rule"] for f in preflight["capabilities"]] == ["fp8_vllm_weight_only"]

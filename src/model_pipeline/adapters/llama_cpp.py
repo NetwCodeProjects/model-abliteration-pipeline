@@ -40,6 +40,47 @@ def completion_argv(cmd: list[str], model: Path, prompt: str, n_predict: int, ct
     return [*cmd, "-m", str(model), "-p", prompt, "-n", str(n_predict), "--temp", "0", "-s", "0", "-c", str(ctx), "-ngl", gpu_layers, "-no-cnv"]
 
 
+def rendered_completion_argv(cmd: list[str], model: Path, prompt_file: Path, n_predict: int, ctx: int, gpu_layers: str) -> list[str]:
+    """Generate from text already rendered by the baseline's chat template, byte for byte (d854d98, common/arg.cpp):
+    ``-f`` reads the prompt from a file and drops one trailing newline (the caller appends one), ``--no-escape``
+    keeps backslash sequences literal (escape processing also applies to -f), ``--no-display-prompt`` keeps
+    the prompt out of stdout, and ``-no-cnv`` uses the prompt as is (no chat template)."""
+    return [
+        *cmd,
+        "-m",
+        str(model),
+        "-f",
+        str(prompt_file),
+        "--no-escape",
+        "--no-display-prompt",
+        "-n",
+        str(n_predict),
+        "--temp",
+        "0",
+        "-s",
+        "0",
+        "-c",
+        str(ctx),
+        "-ngl",
+        gpu_layers,
+        "-no-cnv",
+    ]
+
+
+EOG_MARKER = "[end of text]"
+
+
+def generated_text(stdout: str) -> tuple[str, str]:
+    """Generated text and finish reason from llama-completion's stdout with --no-display-prompt.
+
+    llama-completion prints " [end of text]" after an end-of-generation token (seen with d854d98 on a real
+    Qwen3.5-0.8B GGUF, docs/implementation-log.md); without it the token limit ended generation."""
+    text = stdout.rstrip()
+    if text.endswith(EOG_MARKER):
+        return text[: -len(EOG_MARKER)].rstrip(), "stop"
+    return text.strip(), "length"
+
+
 def mtmd_argv(cmd: list[str], model: Path, mmproj: Path, image: Path, prompt: str, n_predict: int, ctx: int, gpu_layers: str) -> list[str]:
     return [
         *cmd,

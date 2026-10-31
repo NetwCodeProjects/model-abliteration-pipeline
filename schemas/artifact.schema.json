@@ -24,7 +24,7 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"enum": ["1.0", "1.1"], "description": "1.1 adds the optional assessments and derived_status fields (additive; docs/artifact-schema.md#schema-history-and-migration)."},
     "artifact_id": {"type": "string", "pattern": "^art-[0-9a-f]{24}$", "description": "Content-addressed: derived from the sorted (path, size, sha256) inventory."},
     "parent_artifact_id": {"type": ["string", "null"], "pattern": "^art-[0-9a-f]{24}$"},
     "run_id": {"type": "string", "minLength": 1},
@@ -123,9 +123,37 @@
         "metrics_provenance": {"enum": ["not-evaluated", "integrity-only", "optimizer-only", "fast-qualification", "extended-qualification"]}
       }
     },
+    "assessments": {
+      "type": "array",
+      "description": "Assessment records of this artifact known when the manifest was written; workspace/assessments/<artifact_id>/ is authoritative.",
+      "items": {
+        "type": "object",
+        "required": ["assessment_id", "kind", "run_id", "stage_id", "created_utc", "outcome"],
+        "additionalProperties": false,
+        "properties": {
+          "assessment_id": {"type": "string", "pattern": "^asm-[0-9a-f]{24}$"},
+          "kind": {"enum": ["promotion", "verification", "comparison"]},
+          "run_id": {"type": "string"},
+          "stage_id": {"type": "string"},
+          "created_utc": {"type": "string"},
+          "outcome": {"type": "string"}
+        }
+      }
+    },
+    "derived_status": {
+      "type": "object",
+      "description": "Assessment record behind validation, inference and evaluation; null = registration default.",
+      "required": ["validation", "inference", "evaluation"],
+      "additionalProperties": false,
+      "properties": {
+        "validation": {"type": ["string", "null"], "pattern": "^asm-[0-9a-f]{24}$"},
+        "inference": {"type": ["string", "null"], "pattern": "^asm-[0-9a-f]{24}$"},
+        "evaluation": {"type": ["string", "null"], "pattern": "^asm-[0-9a-f]{24}$"}
+      }
+    },
     "extensions": {
       "type": "object",
-      "description": "Additional lineage/diagnostic details (storage semantics, dropped tensors, engine trial, smoke-test outputs). Consumers must tolerate unknown keys here."
+      "description": "Additional lineage/diagnostic details (storage semantics, dropped tensors, engine trial). Consumers must tolerate unknown keys here."
     }
   }
 }

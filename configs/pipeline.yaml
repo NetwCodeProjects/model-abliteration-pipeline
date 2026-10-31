@@ -63,6 +63,11 @@ evaluation:
   extended_correctness: false
   enable_thinking: false             # Qwen3.8 thinks by default; short checks disable it (recorded)
   max_new_tokens: 256
+  comparison:                        # stage 09: same rendered prompts on the master (or source) and every export
+    enabled: true
+    benign_prompts: 8
+    heldout_refusal_prompts: 4
+    max_new_tokens: 128
 
 selection:
   max_optimizer_refusal_rate: 0.2    # Heretic in-loop score (labelled optimizer metric)
@@ -77,6 +82,11 @@ selection:
   optional_gates: []                 # only optional gates may be disabled with null; they never block promotion
   override_gates: []                 # bypass these required gates; the master is labelled 'ungated'
   allow_ungated_promotion: false     # shorthand for override_gates = every gate
+  export_gates:                      # master vs export comparison (docs/assessments.md); not part of stage 07
+    mode: report                     # report | enforce (a failed or unmeasured comparison fails the export)
+    max_benign_correct_drop: 0.25
+    max_heldout_refusal_increase: 0.25
+    require_integrity: true
   # Heretic's merged export drops the 15 'mtp.*' tensors (multi-token-prediction draft head) of this
   # model. Add 'mtp.' to copy them verbatim from the source (they were not abliterated).
   graft_missing_source_tensors: []

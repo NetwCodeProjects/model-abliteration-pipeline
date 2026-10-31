@@ -41,7 +41,7 @@ vLLM's JIT kernels need both; on the A100 they failed without them.
 
 On GPUs without native FP8 (compute capability below 8.9, e.g. A100 = 8.0), vLLM runs FP8 checkpoints
 weight-only through a fallback kernel. The test still runs and its result is recorded
-(`extensions.verification.smoke.representative: false`). It neither passes nor fails the export, and
+(`representative: false` in the verification assessment record and in `metrics/verification.json`). It neither passes nor fails the export, and
 `inference_passed` stays `null`. FP8 is only verified on native-FP8 hardware.
 
 Preservation check: transformers 5 merges `preprocessor_config.json` and `video_preprocessor_config.json`

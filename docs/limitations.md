@@ -35,6 +35,14 @@ Nothing in this repository claims real B200 results. `tests/gpu/` contains the c
 - FP8 smoke tests exercise text only; image inputs are verified only for GGUF (+mmproj) with a synthetic
   image and a "did it run" criterion (content correctness is recorded, not gated).
 - Qualification is a smoke test (≈30 prompts, keyword refusal heuristic) — not a benchmark.
+- The master vs export comparison is a 12-prompt smoke comparison (counts with denominators); a delta of one prompt is
+  noise, not a measured regression. llama.cpp runs one process per prompt (the model loads each time).
+- The vLLM comparison path (`LLM.generate` on rendered text) has not run with real vLLM in this repository (no GPU).
+  The llama.cpp invocation ran once with the pinned `llama-completion` on a real Qwen3.5-0.8B GGUF (CPU); the complete
+  stage 09 comparison (transformers baseline, then exports) has run with the fake runtimes only.
+- Quantize-only runs with comparison enabled provision the `heretic` environment (transformers) to measure the source.
+- Identical bytes registered by two runs share one global manifest; its lineage fields (`run_id`) are those of the latest
+  registration. Assessment records are never lost: `workspace/assessments/<artifact_id>/` holds every run's records.
 - GGUF fit on a 16 GB RTX A4000 is not guaranteed; tested context is recorded, not promised.
 - No automatic reboot, driver install only on the ubuntu profile and only when explicitly allowed.
 - Single host, single run per run directory; no distributed queue, HTTP API or uploads (non-goals).

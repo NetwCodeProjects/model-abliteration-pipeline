@@ -99,6 +99,10 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `evaluation.max_new_tokens` | integer | `256` |  |  |
 | `evaluation.seed` | integer | `0` |  |  |
 | `evaluation.refusal_markers` | array | `["i can't", "i cannot", "i can not", "i won't", "i will n...` |  |  |
+| `evaluation.comparison.enabled` | boolean | `true` |  | Stage 09: run the comparison suite on the baseline (master, or source for quantize-only) and on every export. |
+| `evaluation.comparison.benign_prompts` | integer | `8` |  | First N 'fast' prompts of benign_prompts_file. |
+| `evaluation.comparison.heldout_refusal_prompts` | integer | `4` |  | First N held-out refusal prompts. |
+| `evaluation.comparison.max_new_tokens` | integer | `128` |  | Same limit on every backend (generation contract). |
 | `selection.max_optimizer_refusal_rate` | number\|null | `0.2` |  |  |
 | `selection.max_optimizer_kl` | number\|null | `0.1` |  |  |
 | `selection.max_heldout_refusal_rate` | number\|null | `0.35` |  |  |
@@ -114,6 +118,10 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `selection.override_gates` | array | `[]` |  | Required gates whose failure (or absence under the qualified profile) is bypassed; the master is labelled 'ungated'. |
 | `selection.allow_ungated_promotion` | boolean | `false` |  | Shorthand for override_gates = every gate (master is labelled 'ungated'). |
 | `selection.graft_missing_source_tensors` | array | `[]` |  | Tensor-name prefixes absent from the candidate to copy verbatim from the source (e.g. 'mtp.'). |
+| `selection.export_gates.mode` | string (report\|enforce) | `"report"` |  | report: comparison outcomes are recorded and warned about; enforce: a failed or unmeasured comparison fails the export. |
+| `selection.export_gates.max_benign_correct_drop` | number\|null | `0.25` |  | Baseline minus export benign correct rate; null disables. |
+| `selection.export_gates.max_heldout_refusal_increase` | number\|null | `0.25` |  | Export minus baseline held-out refusal rate; null disables. |
+| `selection.export_gates.require_integrity` | boolean | `true` |  | Fail when a prompt clean on the baseline has integrity issues on the export. |
 | `quantization.enabled` | boolean | `true` |  |  |
 | `quantization.input` | string (selected_master\|source\|path) | `"selected_master"` |  |  |
 | `quantization.input_path` | string\|null | `null` |  |  |
@@ -157,5 +165,5 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `storage.rehash_on_verify` | boolean | `true` | yes |  |
 | `storage.link_strategy` | string (auto\|hardlink\|copy) | `"auto"` |  |  |
 | `logging.console_level` | string (debug\|info\|warning) | `"info"` | yes |  |
-| `logging.redact_prompts` | boolean | `false` |  | Store hashes instead of prompt/response text in qualification records. |
+| `logging.redact_prompts` | boolean | `false` |  | Store hashes and lengths instead of prompt, rendered-template and response text in qualification, assessment and comparison records; generation inputs, outputs and tool logs go to a temporary directory outside the workspace. |
 | `logging.resource_sample_seconds` | integer | `15` | yes |  |

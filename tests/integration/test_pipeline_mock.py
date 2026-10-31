@@ -47,7 +47,12 @@ def test_published_baselines_do_no_inference_or_reference_download(env):
     receipt = env.receipt(run, "03")
     assert receipt["diagnostics"]["local_inference_runs"] == 0
     assert ("snapshot", "coder3101/Qwen3.8-27B-heretic-ara") not in env.hub.calls
-    assert env.count("qualify") == 1  # only the candidate was evaluated (stage 06)
+    # Only our own artifacts ran: the candidate (stage 06) and the master as comparison baseline (stage 09).
+    assert env.count("qualify") == 2
+    specs = sorted((run / "logs").glob("*/*-spec.json"))
+    assert {json.loads(s.read_text())["model_path"] for s in specs} <= {str(p) for p in (run.parents[1] / "models" / "candidates").glob("*/*")} | {
+        env.artifacts(run)["master"]["path"]
+    }
 
 
 def test_qualification_separates_optimizer_metrics_from_independent_ones(env):

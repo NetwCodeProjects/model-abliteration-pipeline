@@ -72,6 +72,11 @@ evaluation:
   enable_thinking: false
   max_new_tokens: 256
   seed: 0
+  comparison:
+    enabled: true
+    benign_prompts: 8
+    heldout_refusal_prompts: 4
+    max_new_tokens: 128
   # refusal_markers: [...]           # keyword heuristic; see configspec.DEFAULT_REFUSAL_MARKERS
 
 selection:
@@ -90,6 +95,11 @@ selection:
   override_gates: []
   allow_ungated_promotion: false
   graft_missing_source_tensors: []
+  export_gates:
+    mode: report                     # report | enforce
+    max_benign_correct_drop: 0.25
+    max_heldout_refusal_increase: 0.25
+    require_integrity: true
 
 quantization:
   enabled: true

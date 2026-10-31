@@ -503,6 +503,38 @@
             "it is not appropriate",
             "it's not appropriate"
           ]
+        },
+        "comparison": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Stage 09: run the comparison suite on the baseline (master, or source for quantize-only) and on every export.",
+              "default": true
+            },
+            "benign_prompts": {
+              "type": "integer",
+              "description": "First N 'fast' prompts of benign_prompts_file.",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 8
+            },
+            "heldout_refusal_prompts": {
+              "type": "integer",
+              "description": "First N held-out refusal prompts.",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 4
+            },
+            "max_new_tokens": {
+              "type": "integer",
+              "description": "Same limit on every backend (generation contract).",
+              "minimum": 1,
+              "default": 128
+            }
+          },
+          "additionalProperties": false,
+          "description": "Master vs export comparison (docs/assessments.md#comparison)."
         }
       },
       "additionalProperties": false,
@@ -631,6 +663,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "export_gates": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "description": "report: comparison outcomes are recorded and warned about; enforce: a failed or unmeasured comparison fails the export.",
+              "enum": [
+                "report",
+                "enforce"
+              ],
+              "default": "report"
+            },
+            "max_benign_correct_drop": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Baseline minus export benign correct rate; null disables.",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.25
+            },
+            "max_heldout_refusal_increase": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Export minus baseline held-out refusal rate; null disables.",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.25
+            },
+            "require_integrity": {
+              "type": "boolean",
+              "description": "Fail when a prompt clean on the baseline has integrity issues on the export.",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "description": "Checks on the master vs export comparison (stage 09; not part of stage 07's key)."
         }
       },
       "additionalProperties": false,
@@ -942,7 +1015,7 @@
         },
         "redact_prompts": {
           "type": "boolean",
-          "description": "Store hashes instead of prompt/response text in qualification records.",
+          "description": "Store hashes and lengths instead of prompt, rendered-template and response text in qualification, assessment and comparison records; generation inputs, outputs and tool logs go to a temporary directory outside the workspace.",
           "default": false
         },
         "resource_sample_seconds": {

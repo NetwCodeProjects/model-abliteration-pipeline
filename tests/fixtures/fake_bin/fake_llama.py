@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _fakeutil import count, minimal_gguf  # noqa: E402
+from _fakeutil import count, degraded, fake_answer, minimal_gguf  # noqa: E402
 
 
 def arg(flag: str) -> str:
@@ -72,6 +72,16 @@ def main() -> int:
         shutil.copyfile(arg("-f"), arg("-o"))
         return 0
     if tool == "completion":
+        if "-f" in rest:
+            # Real llama-completion (d854d98; source and a real Qwen3.5-0.8B GGUF run, docs/implementation-log.md):
+            # -f drops one trailing newline; with --no-display-prompt only the generated text reaches stdout,
+            # followed by " [end of text]" when an end-of-generation token stopped it.
+            prompt = Path(arg("-f")).read_text(encoding="utf-8")
+            prompt = prompt.removesuffix("\n")
+            assert "--no-escape" in rest and "-no-cnv" in rest, "rendered prompts must reach the model unchanged"
+            answer = fake_answer(prompt, degraded(arg("-m")))
+            print((answer if "--no-display-prompt" in rest else prompt + answer) + " [end of text]")
+            return 0
         print(arg("-p") + " The answer is Paris, and 17 * 23 = 391.")
         return 0
     if tool == "mtmd":
