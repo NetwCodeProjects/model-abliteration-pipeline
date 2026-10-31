@@ -38,6 +38,19 @@ model/revision differs, and performs **zero** downloads or inference of referenc
 loading both checkpoints (fits on one B200). `extended_kl` / `extended_correctness` can be enabled
 individually with `fast`.
 
+## Trial selection (stage 05)
+
+Stage 05 chooses which study trial becomes the candidate before any of the gates below run:
+completed trials that meet `selection.max_optimizer_refusal_rate` and `selection.max_optimizer_kl`
+are ranked by `selection.policy` (default `min_refusals_within_kl`). The same two thresholds are the
+optimizer gates of stage 07, so a policy choice always passes them. Details, the manual choice and
+the record in `metrics/selection-candidates.json`: [study lifecycle](study-lifecycle.md#selection-phase-3).
+
+**Holdout hygiene.** Selection uses Heretic's optimizer metrics only. The held-out prompts of fast
+qualification are never used to choose among trials, so they remain held out for the one candidate
+that is qualified. Qualifying several candidates and picking the best would turn the held-out set into
+a selection set; if that is ever added, it needs a separate final holdout.
+
 ## Gates and promotion (stage 07)
 
 Gates in **canonical order**. This order is used to break ties when choosing the reason:
@@ -96,7 +109,9 @@ Required gates are combined with this precedence. The **weakest claim wins**:
   triggered it (`deciding_gate`). `triggered_gates` lists **every** required gate that triggered
   any rule, not only the deciding one.
 - **Candidate origin** (policy or manual choice of a trial) is recorded but never changes the outcome.
-  A manual choice selects a candidate; it does not bypass a requirement.
+  A manual choice selects a candidate; it does not bypass a requirement. Recorded values:
+  `{"kind": "policy", "policy": …}`, `{"kind": "manual", "by": "trial_id"|"pareto_position", "value": …,
+  "ineligible_override": …}`, or `{"kind": "reproduction"}`.
 - **Run mode** never changes the required gate set; the same gates are required in every mode.
   - **optimize:** every metric can be measured.
   - **exact and approximate reproduction:** no optimization runs, so both optimizer gates are

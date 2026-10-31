@@ -182,3 +182,56 @@ overwrites the stored budget. No pipeline code was changed.
   strings, so `tokenizer.json` is still reported as `differs`, now with a summary. The first two cases
   are `re-serialized` with their basis. The real processor files are kept as test fixtures in
   `tests/fixtures/transformers5_qwen35/`.
+
+## 2026-10-30 — Steps 2–3: constraint-based selection, export-only and study history
+
+Design: [study-lifecycle.md](study-lifecycle.md) (committed before the code). Stage 05 now runs
+search-only → selection → export-only under a study lock, and records every step in
+`study-history.jsonl`.
+
+- **Selection** (`evaluation/selection.py`, pure). Completed trials meeting the optimizer constraints
+  are ranked by `selection.policy`; `metrics/selection-candidates.json` lists every trial. `--trial-id`
+  is new; `--pareto-index` is resolved to a trial identifier once. `abliteration.pareto_trial_index`
+  now defaults to `null`. New error ids: `E_NO_ELIGIBLE_TRIAL`, `E_MANUAL_TRIAL_INELIGIBLE`,
+  `E_TRIAL_NOT_FOUND`, `E_TRIAL_NOT_EXPORTABLE`, `E_TRIAL_CHOICE_CONFLICT`.
+- **Export-only** per the Step 0 constraints. `heretic_study_tool.py set-settings` replaces
+  `update-settings` (the C-hazard). The export is verified by the trial-set digest and the restore
+  line: `E_EXPORT_ADDED_TRIALS`, `E_EXPORT_TRIAL_MISMATCH`. A crash during the search is now
+  `E_HERETIC_SEARCH_FAILED` (it was reported as `E_HERETIC_NO_OUTPUT`).
+- **History, locks, environment.** Intents are written before the study is modified and are reconciled
+  on resume. A fork copies the journal under the parent's lock. The tool environment is part of the
+  study identity, and a change is refused (`E_STUDY_ENVIRONMENT_CHANGED`). A new run whose inputs
+  match another study is recorded as `replay`.
+- **Behavior change.** With the default thresholds, policy selection avoids the high-KL trial that
+  Pareto position 0 used to export. The tests that relied on that trial now use an explicit manual choice.
+
+Findings while implementing:
+
+21. **Budget-derived `n_startup_trials` changed the study identity.** With
+    `abliteration.n_startup_trials: null` the value is `max_trials // 3`, so a budget increase created a
+    new study instead of continuing. Found by the budget-increase test. Fix: stage 04 records
+    `budget_derived_keys` and the identity excludes them. A continued study keeps its stored value anyway.
+22. **Stale-lock detection on Windows.** `FileLock._pid_alive` treated any PID that `OpenProcess` could
+    open as alive. A terminated process stays openable while a handle to it exists, so a killed
+    pipeline's lock blocked the resumed run (exit 12, intermittently). Fix: also require
+    `GetExitCodeProcess == STILL_ACTIVE`, with a regression test.
+23. **Hard-kill tests on Windows.** A venv's `python.exe` is a launcher that starts the real interpreter
+    as a child, so `os.getppid()` in a fake tool is not always the pipeline. The test driver exports its
+    PID (`FAKE_PIPELINE_PID`).
+24. **The realtools test predated Steps 1 and 4.** Null thresholds now need `optional_gates`, the tiny
+    Qwen3.5 model needs the `qwen3_5` profile for FP8, and `fp8_dynamic` is needed (finding 18). With
+    random weights, the word-salad check (`d1849b0`) can fail integrity. That makes stage 09's master
+    smoke test fail and the run partial (exit 20), which the test now accepts in that exact case only.
+
+Real-tool verification (WSL2, CPU, real Heretic `171bb98b`, `tiny-random/qwen3.8`, seed 1234; workspace
+`/home/exo/pa-ws`, runs `20261031T012711Z-57676b`, fork `…012908Z-c98c78`, fork `…013006Z-8fab33`):
+
+| Check | Engine output | History |
+|---|---|---|
+| search-only, 5 trials | `Running trial 1…5 of 5`, `Restoring model from trial 5`, no save | `replay` (an earlier run had the same inputs), 5 added |
+| export-only | `Resuming existing study.`, no `Running trial`, `Restoring model from trial 5`, saved | `export`, before: 5 trials and stored `n_trials` 5; 0 added |
+| fork, `--max-trials 8` | `Running trial 6…8 of 8` only, then export-only of trial 5 | `fork-continue`, `continue` (3 added), `select`, `export` (0 added) |
+| fork of that fork, `--trial-id 6` | `Restoring model from trial 6`, saved | `export` at Pareto position 1, 0 added |
+| real study tool on the A100 journal (copy) | Pareto `[8, 9, 3, 5]` | selection picks trial 3 (refusals 0.03, KL 0.0916) |
+
+The kill-recovery, lock and environment-change tests use the fake engine only.

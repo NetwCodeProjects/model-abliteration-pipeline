@@ -46,6 +46,11 @@ All four are recorded in the stage 05 receipt (`diagnostics.fingerprints`) and i
 `inputs_id` is the study identity without the environment; it is used only to detect an
 environment change (below).
 
+`n_startup_trials` is excluded from the identity when it is derived from the budget
+(`abliteration.n_startup_trials: null` → `min(template value, max_trials // 3)`): a continued
+study keeps the value stored at its creation, so a budget increase must not create a new study.
+An explicitly configured value is part of the identity.
+
 Tool environment = from the Heretic component record: `torch` (its version string carries the
 CUDA build, e.g. `2.10.0+cu128`), `transformers`, `optuna`, `python`, and the torch source/backend
 of the component spec.
@@ -107,8 +112,10 @@ implemented; if it is added later it must use a separate final holdout.
   "policy": "min_refusals_within_kl",
   "constraints": {"max_optimizer_refusal_rate": 0.2, "max_optimizer_kl": 0.1},
   "score_names": {"refusal": "Refusals", "kl": "KL divergence"},
-  "manual": null,
-  "chosen": {"number": 2, "index": 3, "pareto_position": 2, "refusal_rate": 0.03, "kl": 0.0916, "by": "policy", "ineligible_override": false},
+  "manual": null, "allow_ineligible_choice": false,
+  "chosen": {"number": 2, "index": 3, "pareto_position": 2, "refusal_rate": 0.03, "kl": 0.0916, "eligible": true, "by": "policy", "ineligible_override": false},
+  "origin": {"kind": "policy", "policy": "min_refusals_within_kl"},
+  "error": null,
   "complete_trials": 12, "eligible_trials": 2,
   "trials": [{"number": 2, "index": 3, "state": "COMPLETE", "pareto_position": 2, "refusal_rate": 0.03, "kl": 0.0916,
               "eligible": true, "reasons": [], "rank": 1}],
@@ -136,7 +143,7 @@ State = `trials` (all states), `states` (count per state), `trial_set_sha256`, s
 |---|---|---|
 | `new` | yes | first search of a new study |
 | `continue` | yes | search on an existing study (resume, budget increase) |
-| `replay` | yes | new study with the same inputs as another (`replay_of`), after an environment change |
+| `replay` | yes | new study with the same inputs as a study of another run (`replay_of`) |
 | `select` | no | single `completion` line: chosen trial, how, selection fingerprint |
 | `export` | no (verified) | records the stored `n_trials` and `finished` **before** export-only overwrites them (C5) |
 | `fork-continue` | no | first line(s) of a fork's study: parent run, parent study, trials at copy time, the parent's finished search fingerprints |
@@ -156,15 +163,23 @@ many trials each added, which trial was selected by what rule, and which trial w
 ## Environment identity
 
 The tool environment is part of the study identity. If no study exists for the current identity
-but one with the same `inputs_id` exists (in this run, or in the parent of a fork) under another
-environment, stage 05 refuses with `E_STUDY_ENVIRONMENT_CHANGED` (exit 7), unless
-`abliteration.on_environment_change: new_study`, which starts a new study recorded as `replay`
-with `replay_of` the old study.
+but one with the same `inputs_id` exists in this run, or in the parent of a fork, under another
+environment, stage 05 refuses with `E_STUDY_ENVIRONMENT_CHANGED` (exit 7). The way forward is
+either to restore the recorded environment (shown in the error and in `study.json`) or to start a
+new study with `--new-run`.
+
+A new study whose inputs (`inputs_id`) match a study of another run in the workspace is recorded
+as `replay` with `replay_of`: same resolved inputs, new study. This needs a fixed
+`abliteration.seed`, because the derived seed differs per run.
 
 Why refuse: the trials of one study form one Pareto front only if their scores were measured with
 the same numerics. A different torch/CUDA build or transformers version can change refusal counts
 and KL values, and an export-only restore under a different environment may not reproduce the
 weights that were scored. Silently continuing would mix both.
+
+Design note: a config key to start a new study in place was considered and dropped. A resume
+cannot change the configuration and a fork can change it only through CLI flags, so such a key
+could not be reached when it is needed.
 
 ## Resume and kill recovery
 
@@ -187,6 +202,7 @@ journal and reported as a warning. Then the phases run as usual:
 | `E_TRIAL_NOT_FOUND` | 3 | manual trial unknown, not `COMPLETE`, or Pareto position out of range |
 | `E_TRIAL_NOT_EXPORTABLE` | 3 | manual trial is not on the Pareto front |
 | `E_TRIAL_CHOICE_CONFLICT` | 3 | both `trial_id` and `pareto_trial_index` set |
+| `E_HERETIC_SEARCH_FAILED` | 8 | Heretic exited non-zero during the search (other search failures keep `E_HERETIC_CONFIG`, `E_HERETIC_BUDGET_EXHAUSTED`, `E_HERETIC_TIMEOUT`) |
 | `E_EXPORT_ADDED_TRIALS` | 8 | export-only changed the trial set |
 | `E_EXPORT_TRIAL_MISMATCH` | 8 | Heretic restored a different trial than selected |
 | `E_STUDY_LOCKED` | 12 | another process holds the study lock |
@@ -200,3 +216,20 @@ journal and reported as a warning. Then the phases run as usual:
   including `0`, is now a manual choice.
 - Candidate directories are named `c-<export fingerprint>-t<trial index>`.
 - `heretic_study_tool.py update-settings` is replaced by `set-settings`.
+- The realtools test config now loads `configs/profiles/qwen3_5.yaml`, lists the gates it disables
+  in `selection.optional_gates` (Step 1) and uses `fp8_dynamic` (implementation-log finding 18).
+
+## Verification
+
+| Check | How | Result |
+|---|---|---|
+| Selection on the A100 study | unit test on the recorded scores (`tests/fixtures/a100_study/`); realtools test with the **real** study tool on a copy of the A100 Optuna journal | trial `index` 3 (`number` 2, refusals 0.03, KL 0.0916), Pareto position 2; the journal copy is byte-identical afterwards |
+| A100 replay, zero new trials | fake engine replaying the 12 recorded trials | 12 trials searched once; export-only restores trial 3 |
+| Search-only → select → export-only | realtools, **real** Heretic `171bb98b` on CPU, `tiny-random/qwen3.8`, 5 trials | `Running trial 1…5`, no save; then `Resuming existing study.`, no `Running trial`, `Restoring model from trial 5`, saved; trial-set digest unchanged |
+| Budget increase in a fork | realtools, real engine, 5 → 8 | `continue`: `Running trial 6…8` only, then export-only; parent study files unchanged |
+| `--trial-id` fork at Pareto position 1 | realtools, real engine | `Restoring model from trial 6`, zero new trials |
+| `replay` | realtools, fixed seed, second run in the same workspace | first history action `replay`, `replay_of` the earlier study |
+| Selection reuse (KL, refusal, policy, manual), rerun reuse, kill recovery at four points, study lock, fork lock, environment change | fake engine (`tests/integration/test_study_lifecycle.py`); the kill tests hard-kill the pipeline process | as specified above |
+
+Not verified: GPU runs and the time/memory of the in-memory restore that search-only still does
+(C2); kill recovery with the real engine (fakes only); SIGINT during a real export-only invocation.

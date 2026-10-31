@@ -227,7 +227,7 @@
         },
         "shutdown_grace_minutes": {
           "type": "integer",
-          "description": "Time allowed for saving after a budget stop before termination.",
+          "description": "Time allowed for an export-only invocation (load, restore, merge, save) and for stopping a search.",
           "minimum": 1,
           "default": 90
         },
@@ -239,10 +239,20 @@
           "description": "Heretic seed; null generates one and records it."
         },
         "pareto_trial_index": {
-          "type": "integer",
-          "description": "Index into Heretic's sorted Pareto front (0 = fewest refusals).",
-          "minimum": 0,
-          "default": 0
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Manual choice by position in Heretic's sorted Pareto front (0 = fewest refusals); null = selection.policy.",
+          "minimum": 0
+        },
+        "trial_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Manual choice of Heretic trial N ('Restoring model from trial N'); null = selection.policy.",
+          "minimum": 1
         },
         "save_intermediate": {
           "type": "boolean",
@@ -553,6 +563,20 @@
           "type": "string",
           "description": "Heretic score name used as KL.",
           "default": "KL divergence"
+        },
+        "policy": {
+          "type": "string",
+          "description": "Ranks completed trials that meet max_optimizer_refusal_rate/max_optimizer_kl (docs/study-lifecycle.md).",
+          "enum": [
+            "min_refusals_within_kl",
+            "min_kl_within_refusals"
+          ],
+          "default": "min_refusals_within_kl"
+        },
+        "allow_ineligible_choice": {
+          "type": "boolean",
+          "description": "Export a manual trial choice that fails the optimizer constraints (recorded; gates still apply).",
+          "default": false
         },
         "profile": {
           "type": "string",

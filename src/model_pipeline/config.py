@@ -276,6 +276,13 @@ def _cross_validate(data: dict[str, Any], *, require_model: bool) -> None:
             hint="Use published_only; local reference evaluation belongs to a later version or Project B.",
         )
     abl = data["abliteration"]
+    if abl["trial_id"] is not None and abl["pareto_trial_index"] is not None:
+        raise PipelineError(
+            ExitCode.CONFIG,
+            "E_TRIAL_CHOICE_CONFLICT",
+            f"abliteration.trial_id ({abl['trial_id']}) and abliteration.pareto_trial_index ({abl['pareto_trial_index']}) are both set",
+            hint="Choose a trial by its Heretic index (trial_id) or by Pareto position, not both (see docs/study-lifecycle.md).",
+        )
     if abl["enabled"] and abl["experiment"] == "reproduce":
         rep = abl["reproduce"]
         if not (rep["source"] or rep["reference_repo"]):

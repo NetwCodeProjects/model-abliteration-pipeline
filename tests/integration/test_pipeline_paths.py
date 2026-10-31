@@ -14,6 +14,10 @@ def manifests(env, run_dir):
     return {role: json.loads(Path(a["manifest"]).read_text()) for role, a in env.artifacts(run_dir).items()}
 
 
+def history(receipt):
+    return [json.loads(line) for line in Path(receipt["diagnostics"]["history"]).read_text().splitlines()]
+
+
 def test_quantize_only_skips_heretic(env):
     env.provision()
     code, out = env.run("--quantize-only")
@@ -67,7 +71,7 @@ def test_resume_after_stage05_crash_continues_study(env, monkeypatch):
     code, out = env.run()
     assert code == ExitCode.ENGINE, out
     run = env.latest_run()
-    assert env.receipt(run, "05")["error"]["error_id"] == "E_HERETIC_NO_OUTPUT"
+    assert env.receipt(run, "05")["error"]["error_id"] == "E_HERETIC_SEARCH_FAILED"
     assert (run / "reports" / "report.md").read_text().startswith("# Run report")
     monkeypatch.delenv("FAKE_HERETIC_MODE")
     code, out = env.run("--resume", run.name)
@@ -77,6 +81,8 @@ def test_resume_after_stage05_crash_continues_study(env, monkeypatch):
     assert started[:3] == [1, 2, 3] and started.count(1) == 1, "study continued instead of restarting"
     receipt = env.receipt(run, "05")
     assert receipt["outcome"] == "succeeded" and receipt["diagnostics"]["candidate_path"]
+    steps = [(e["action"], e["phase"], e.get("trials_added")) for e in history(receipt)]
+    assert steps[:4] == [("new", "intent", None), ("new", "failure", 2), ("continue", "intent", None), ("continue", "completion", 48)]
 
 
 def test_resume_after_stage08_crash_reuses_finished_formats(env, monkeypatch):
@@ -124,13 +130,34 @@ def test_failed_gates_do_not_promote(env, monkeypatch):
     assert "Incomplete run" in (run / "reports" / "report.md").read_text()
 
 
-def test_optimizer_kl_gate_blocks_aggressive_trial(env, monkeypatch):
+def test_policy_selection_avoids_the_aggressive_fewest_refusals_trial(env, monkeypatch):
+    env.provision()
+    monkeypatch.setenv("FAKE_KL_STEP", "0.01")  # trial i: refusals 0.5/i, KL 0.01*i -> only trials 3..10 meet both constraints
+    code, out = env.run("--through", "7")
+    assert code == 0, out
+    run = env.latest_run()
+    candidates = json.loads((run / "metrics" / "selection-candidates.json").read_text())
+    assert candidates["eligible_trials"] == 8 and candidates["chosen"]["index"] == 10 and candidates["chosen"]["by"] == "policy"
+    assert candidates["trials"][-1]["reasons"] == ["KL 0.5 > 0.1"] and candidates["trials"][-1]["pareto_position"] == 0
+    selection = json.loads((run / "metrics" / "selection.json").read_text())
+    assert selection["outcome"] == "promoted:qualified" and selection["candidate_origin"] == {"kind": "policy", "policy": "min_refusals_within_kl"}
+
+
+def test_ineligible_manual_choice_needs_an_override_and_still_faces_the_gates(env, monkeypatch):
     env.provision()
     monkeypatch.setenv("FAKE_KL_STEP", "0.01")
-    code, _ = env.run()
+    code, _ = env.run("--pareto-index", "0")
     assert code == ExitCode.GATE
-    selection = json.loads((env.latest_run() / "metrics" / "selection.json").read_text())
-    assert selection["failed"] == ["optimizer_kl"]
+    run = env.latest_run()
+    assert env.receipt(run, "05")["error"]["error_id"] == "E_MANUAL_TRIAL_INELIGIBLE"
+    assert env.count("heretic") == 1, "no export was attempted"
+    use_config(env, {"selection": {"allow_ineligible_choice": True}})
+    code, _ = env.run("--pareto-index", "0", "--new-run")
+    assert code == ExitCode.GATE
+    run = env.latest_run()
+    assert json.loads((run / "metrics" / "candidate.json").read_text())["selection"]["chosen"]["ineligible_override"] is True
+    selection = json.loads((run / "metrics" / "selection.json").read_text())
+    assert selection["failed"] == ["optimizer_kl"] and selection["candidate_origin"]["ineligible_override"] is True
 
 
 def test_exact_reproduction_is_blocked_without_reproduce_json(env):
@@ -214,10 +241,10 @@ def test_qualification_off_blocks_qualified_promotion_and_research_labels_it(env
 
 
 def test_per_gate_override_promotes_ungated(env, monkeypatch):
-    use_config(env, {"selection": {"override_gates": ["optimizer_kl"]}})
+    use_config(env, {"selection": {"override_gates": ["optimizer_kl"], "allow_ineligible_choice": True}})
     env.provision()
     monkeypatch.setenv("FAKE_KL_STEP", "0.01")
-    code, out = env.run("--quantizations", "fp8")
+    code, out = env.run("--quantizations", "fp8", "--pareto-index", "0")
     assert code == 0, out
     master = manifests(env, env.latest_run())["master"]
     assert master["extensions"]["ungated"] is True
@@ -288,22 +315,36 @@ def test_heretic_exit_zero_is_not_trusted(env, monkeypatch, mode, error):
     assert env.receipt(env.latest_run(), "05")["error"]["error_id"] == error
 
 
-def test_fork_with_other_pareto_index_continues_study_without_new_trials(env, monkeypatch):
+def test_fork_with_trial_id_exports_from_a_copy_without_new_trials(env, monkeypatch):
+    use_config(env, {"selection": {"allow_ineligible_choice": True}})
     env.provision()
     monkeypatch.setenv("FAKE_KL_STEP", "0.01")
-    code, _ = env.run()
+    code, _ = env.run("--pareto-index", "0")
     assert code == ExitCode.GATE
     parent = env.latest_run()
+    parent_receipt = env.receipt(parent, "05")
+    parent_files = {p: p.read_bytes() for p in Path(parent_receipt["diagnostics"]["study_dir"]).rglob("*.json*")}
     trials_before = (env.counters / "heretic.log").read_text().count("trial")
-    code, out = env.run("--resume", parent.name, "--fork", "--pareto-index", "45")
+    code, out = env.run("--resume", parent.name, "--fork", "--trial-id", "7")
     assert code == 0, out
     fork = env.latest_run()
     assert fork.name != parent.name
     assert (env.counters / "heretic.log").read_text().count("trial") == trials_before, "no new Heretic trials"
+    assert {p: p.read_bytes() for p in parent_files} == parent_files, "the fork never writes to the parent's study"
     receipt = env.receipt(fork, "05")
     assert receipt["diagnostics"]["study_copied_from_run"] == parent.name
+    assert receipt["diagnostics"]["fingerprints"]["study_identity"] == parent_receipt["diagnostics"]["fingerprints"]["study_identity"]
+    steps = [(e["action"], e["phase"]) for e in history(receipt)]
+    assert steps == [
+        ("fork-continue", "intent"),
+        ("fork-continue", "completion"),
+        ("select", "completion"),
+        ("export", "intent"),
+        ("export", "completion"),
+    ]
     candidate = json.loads((fork / "metrics" / "candidate.json").read_text())
-    assert candidate["summary"]["exported_trial_index"] == 5 and candidate["summary"]["optimizer_kl"] <= 0.1
+    assert candidate["summary"]["exported_trial_index"] == 7 and candidate["summary"]["optimizer_kl"] <= 0.1
+    assert candidate["selection"]["origin"] == {"kind": "manual", "by": "trial_id", "value": 7, "ineligible_override": False}
     assert env.receipt(parent, "04")["diagnostics"]["seed"] == env.receipt(fork, "04")["diagnostics"]["seed"]
 
 

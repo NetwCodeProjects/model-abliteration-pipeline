@@ -223,10 +223,27 @@ SPEC = S(
                     description="Wall-clock budget; on expiry Heretic is interrupted and saves the configured Pareto trial.",
                 ),
                 "shutdown_grace_minutes": F(
-                    "integer", 90, minimum=1, operational=True, description="Time allowed for saving after a budget stop before termination."
+                    "integer",
+                    90,
+                    minimum=1,
+                    operational=True,
+                    description="Time allowed for an export-only invocation (load, restore, merge, save) and for stopping a search.",
                 ),
                 "seed": F("integer", None, nullable=True, description="Heretic seed; null generates one and records it."),
-                "pareto_trial_index": F("integer", 0, minimum=0, description="Index into Heretic's sorted Pareto front (0 = fewest refusals)."),
+                "pareto_trial_index": F(
+                    "integer",
+                    None,
+                    nullable=True,
+                    minimum=0,
+                    description="Manual choice by position in Heretic's sorted Pareto front (0 = fewest refusals); null = selection.policy.",
+                ),
+                "trial_id": F(
+                    "integer",
+                    None,
+                    nullable=True,
+                    minimum=1,
+                    description="Manual choice of Heretic trial N ('Restoring model from trial N'); null = selection.policy.",
+                ),
                 "save_intermediate": F("boolean", True, description="Keep candidate checkpoints after promotion."),
                 "reproduce": S(
                     {
@@ -287,6 +304,15 @@ SPEC = S(
                 "require_reload": F("boolean", True),
                 "optimizer_refusal_score": F("string", "Refusals", description="Heretic score name used as refusal rate."),
                 "optimizer_kl_score": F("string", "KL divergence", description="Heretic score name used as KL."),
+                "policy": F(
+                    "string",
+                    "min_refusals_within_kl",
+                    enum=("min_refusals_within_kl", "min_kl_within_refusals"),
+                    description="Ranks completed trials that meet max_optimizer_refusal_rate/max_optimizer_kl (docs/study-lifecycle.md).",
+                ),
+                "allow_ineligible_choice": F(
+                    "boolean", False, description="Export a manual trial choice that fails the optimizer constraints (recorded; gates still apply)."
+                ),
                 "profile": F(
                     "string",
                     "qualified",

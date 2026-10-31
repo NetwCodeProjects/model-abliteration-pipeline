@@ -194,7 +194,7 @@ def describe_plan(config: ResolvedConfig, options: RunOptions, probe: HostProbe)
         exp = config.get("abliteration.experiment")
         add(
             f"Abliteration   : Heretic experiment={exp} max_trials={config.get('abliteration.max_trials')} "
-            f"budget={config.get('abliteration.max_runtime_minutes')} min pareto_index={config.get('abliteration.pareto_trial_index')} "
+            f"budget={config.get('abliteration.max_runtime_minutes')} min selection={_selection(config)} "
             f"template={config.get('abliteration.heretic_config') or 'configs/heretic/' + exp + '.toml'}"
         )
         if exp == "reproduce":
@@ -234,3 +234,13 @@ def describe_plan(config: ResolvedConfig, options: RunOptions, probe: HostProbe)
     add("")
     add("Nothing was downloaded, installed, executed on a GPU, or written.")
     return "\n".join(lines)
+
+
+def _selection(config: ResolvedConfig) -> str:
+    if config.get("abliteration.trial_id") is not None:
+        return f"manual trial {config.get('abliteration.trial_id')}"
+    if config.get("abliteration.pareto_trial_index") is not None:
+        return f"manual Pareto position {config.get('abliteration.pareto_trial_index')}"
+    return (
+        f"{config.get('selection.policy')} (refusal <= {config.get('selection.max_optimizer_refusal_rate')}, KL <= {config.get('selection.max_optimizer_kl')})"
+    )

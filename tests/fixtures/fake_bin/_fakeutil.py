@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import struct
 from pathlib import Path
 
@@ -21,6 +22,34 @@ def log(tool: str, message: str) -> None:
     if directory:
         with open(Path(directory) / f"{tool}.log", "a", encoding="utf-8") as handle:
             handle.write(message + "\n")
+
+
+def kill_parent_at(point: str) -> None:
+    """FAKE_KILL_PARENT_AT=<point>: hard-kill the pipeline process (our parent) once, then exit.
+
+    Simulates a host crash or OOM kill at a named point: no cleanup, receipts and history entries
+    stay as they were. One-shot per FAKE_COUNTER_DIR, so the resumed pipeline is not killed again.
+    """
+    if os.environ.get("FAKE_KILL_PARENT_AT") != point:
+        return
+    marker = Path(os.environ.get("FAKE_COUNTER_DIR", ".")) / f"killed-{point.replace(':', '_')}"
+    if marker.exists():
+        return
+    marker.write_text(point)
+    # The driver exports its pid: on Windows a venv's python.exe is a launcher, so our parent may not be the pipeline.
+    os.kill(int(os.environ.get("FAKE_PIPELINE_PID") or os.getppid()), getattr(signal, "SIGKILL", signal.SIGTERM))
+    os._exit(137)
+
+
+def pareto_front(trials: list[dict]) -> list[dict]:
+    """Non-dominated COMPLETE trials sorted by objective values, like Optuna's best_trials + Heretic's menu."""
+    done = [t for t in trials if t.get("state") == "COMPLETE"]
+
+    def dominates(a, b):
+        return all(x <= y for x, y in zip(a["values"], b["values"], strict=True)) and a["values"] != b["values"]
+
+    front = [t for t in done if not any(dominates(o, t) for o in done)]
+    return sorted(front, key=lambda t: tuple(t["values"]))
 
 
 def read_st(path: Path) -> tuple[dict, bytes]:

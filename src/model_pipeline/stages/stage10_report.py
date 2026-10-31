@@ -185,6 +185,15 @@ def render_markdown(summary: dict[str, Any], final: bool) -> str:
         s = cand["summary"]
         out += ["", "## Abliteration", "", f"- Label: **{cand['label']}** (candidate `{cand['candidate_id']}`, seed {cand.get('seed')})"]
         out.append(f"- Optimizer metrics ({s.get('provenance')}): refusal rate {s.get('optimizer_refusal_rate')}, KL {s.get('optimizer_kl')}")
+        chosen = (cand.get("selection") or {}).get("chosen")
+        if chosen:
+            how = "by policy `" + cand["selection"]["policy"] + "`" if chosen["by"] == "policy" else f"manually ({chosen['by']})"
+            out.append(
+                f"- Selected study trial **{chosen['index']}** {how}; Pareto position {chosen['pareto_position']} (informational); "
+                f"constraints {cand['selection']['constraints']}"
+                + ("; **exported although ineligible** (selection.allow_ineligible_choice)" if chosen.get("ineligible_override") else "")
+            )
+            out.append(f"- All trials and the ranking: `{cand['selection']['candidates']}`")
         for item in cand.get("limitations", []):
             out.append(f"- Limitation: {item}")
         diff = cand.get("tensor_diff_vs_source") or {}

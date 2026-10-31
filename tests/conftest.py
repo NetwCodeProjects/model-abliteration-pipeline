@@ -227,8 +227,26 @@ def provision(workspace: Path, config, probe: HostProbe) -> None:
     atomic_write_json(workspace / "tools" / "components.json", {"schema_version": "1.0", "components": {n: r.to_dict() for n, r in records.items()}})
 
 
+def fake_hub(tmp_path: Path) -> FakeHub:
+    hub = tmp_path / "hub"
+    return FakeHub(
+        {"Qwen/Qwen3.8-27B": (hub / "Qwen--Qwen3.8-27B", SOURCE_SHA), "coder3101/Qwen3.8-27B-heretic-ara": (hub / "coder3101--ref", REFERENCE_SHA)},
+        tmp_path / "hfcache",
+    )
+
+
+def fake_services(hub: FakeHub, probe: HostProbe) -> Services:
+    return Services(
+        probe_factory=lambda allow_exec: probe,
+        hub_factory=lambda cache, token: hub,
+        scripts_dir=FAKE_RUNTIME,
+        gpu_query=lambda: None,
+        confirm=lambda message: True,
+    )
+
+
 class Env:
-    """Test environment wiring for in-process CLI runs."""
+    """Test environment wiring for in-process CLI runs (and ``run_killable`` for a separate process)."""
 
     def __init__(self, tmp_path: Path, monkeypatch) -> None:
         self.tmp = tmp_path
@@ -238,17 +256,9 @@ class Env:
         self.counters = tmp_path / "counters"
         self.counters.mkdir()
         monkeypatch.setenv("FAKE_COUNTER_DIR", str(self.counters))
-        self.hub = FakeHub(
-            {"Qwen/Qwen3.8-27B": (self.model, SOURCE_SHA), "coder3101/Qwen3.8-27B-heretic-ara": (self.reference, REFERENCE_SHA)}, tmp_path / "hfcache"
-        )
+        self.hub = fake_hub(tmp_path)
         self.probe = FakeProbe()
-        self.services = Services(
-            probe_factory=lambda allow_exec: self.probe,
-            hub_factory=lambda cache, token: self.hub,
-            scripts_dir=FAKE_RUNTIME,
-            gpu_query=lambda: None,
-            confirm=lambda message: True,
-        )
+        self.services = fake_services(self.hub, self.probe)
         self.config_path = self.write_config({})
         self.base_args = ["--config", str(self.config_path), "--output-dir", str(self.workspace), "--yes", "--log-level", "warning"]
 
@@ -283,6 +293,16 @@ class Env:
         code = main(self.base_args + list(extra), services=self.services, stream=stream)
         return code, stream.getvalue()
 
+    def run_killable(self, *extra: str, **env_vars: str) -> int:
+        """Run the CLI in a child process, so a fake tool can hard-kill it (FAKE_KILL_PARENT_AT)."""
+        import os
+        import subprocess
+
+        driver = ROOT / "tests" / "integration" / "pipeline_driver.py"
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "src"), **env_vars}
+        proc = subprocess.run([sys.executable, str(driver), str(self.tmp), *self.base_args, *extra], env=env, capture_output=True, text=True, timeout=600)
+        return proc.returncode
+
     def count(self, tool: str) -> int:
         path = self.counters / f"{tool}.count"
         return int(path.read_text()) if path.exists() else 0
@@ -301,6 +321,16 @@ class Env:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch) -> Env:
-    for var in ("FAKE_HERETIC_MODE", "FAKE_QUANT_FAIL", "FAKE_MMPROJ_FAIL", "FAKE_FP8_FAIL", "FAKE_QUALIFY_REFUSE_ALL", "FAKE_TRIAL_SECONDS"):
+    for var in (
+        "FAKE_HERETIC_MODE",
+        "FAKE_QUANT_FAIL",
+        "FAKE_MMPROJ_FAIL",
+        "FAKE_FP8_FAIL",
+        "FAKE_QUALIFY_REFUSE_ALL",
+        "FAKE_TRIAL_SECONDS",
+        "FAKE_TRIALS_FILE",
+        "FAKE_KILL_PARENT_AT",
+        "FAKE_KL_STEP",
+    ):
         monkeypatch.delenv(var, raising=False)
     return Env(tmp_path, monkeypatch)

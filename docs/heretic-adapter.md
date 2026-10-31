@@ -19,20 +19,25 @@
   `Settings.model_fields` of the *installed* version and rejects unknown keys
   (`E_HERETIC_UNKNOWN_SETTING`). Plugin tables `[scorer.*]` / `[modifier.*]` are allowed.
 - Headless keys (same as upstream e2e tests): `export_strategy="merge"`, `checkpoint_action`,
-  `trial_index`, `model_action="save"`, `save_directory`.
+  `trial_index`, `model_action`, `save_directory`. The search runs with `model_action = ""` (finish
+  without saving); the export runs export-only with `model_action = "save"`
+  ([study lifecycle](study-lifecycle.md), verified in [step0-feasibility.md](step0-feasibility.md)).
 - `trial_index` indexes the **Pareto front sorted ascending by objective values** in scorer order — with
   the default scorers index 0 is the fewest-refusals trial (usually the highest KL).
-- SIGINT during optimization → `study.stop()`; Heretic then restores the configured trial and saves it.
-  If no trial completed it exits without saving (`E_HERETIC_BUDGET_EXHAUSTED`).
+- SIGINT during the search → `study.stop()`; with `model_action = ""` Heretic then exits without saving
+  (verified, Step 0 check C). Selection and export-only follow. If no trial completed, the stage fails
+  with `E_HERETIC_BUDGET_EXHAUSTED`.
 - Heretic returns **exit status 0 after configuration errors** ("Configuration contains N errors").
-  Success is decided only by validating the saved checkpoint.
+  Success is decided by the journal (completed trials) for the search and by validating the saved
+  checkpoint, the unchanged trial set and the `Restoring model from trial N` line for the export.
 - The Optuna journal file name is derived from `settings.model`. Long absolute paths overflow filename
   limits (observed with the real engine), so Heretic is pointed at a short `model` symlink (junction on
   Windows) inside its working directory.
-- Continuing a study restores **all** non-excluded settings from the study (including `n_trials` and
-  `trial_index`). Before `checkpoint_action=continue` the adapter updates the stored settings through
-  Optuna's public API (`scripts/runtime/heretic_study_tool.py update-settings`), as Heretic itself does
-  for "run additional trials".
+- Continuing a study restores **all** non-excluded settings from the study (including `n_trials`,
+  `trial_index` and `model_action`) and runs `n_trials - len(study.trials)` more trials. Before
+  `checkpoint_action=continue` the adapter sets exactly these three stored settings through Optuna's
+  public API (`scripts/runtime/heretic_study_tool.py set-settings`): the budget for a continued search,
+  `n_trials = len(study.trials)` for export-only, so no trial is added.
 - `--reproduce <file>` accepts **version-4** reproduce.json; the file's settings replace config.toml
   settings (except `exclude=True` fields such as `save_directory`), so control-flow fields are patched.
 - `trust_remote_code` is not a Heretic setting; transformers prompts on stdin (closed) → remote-code
@@ -48,7 +53,8 @@
 | `abliteration.max_trials` | `n_trials` |
 | `abliteration.n_startup_trials` (null → min(template, n_trials//3)) | `n_startup_trials` |
 | `abliteration.seed` (null → derived from run ID, recorded) | `seed` |
-| `abliteration.pareto_trial_index` | `trial_index` |
+| selected trial's Pareto position (resolved from its identifier at selection time) | `trial_index` (export-only) |
+| search / export | `model_action = "" / "save"` |
 | candidate `.partial` dir | `save_directory` |
 | new / continued study | `checkpoint_action = restart / continue` |
 | `abliteration.max_runtime_minutes` | adapter budget: SIGINT, then SIGTERM after `shutdown_grace_minutes`, then SIGKILL |
@@ -61,7 +67,7 @@ Template keys owned by the orchestrator (`model`, `n_trials`, `seed`, `trial_ind
 ## Sample invocation (generated)
 
 ```toml
-# runs/<run>/checkpoints/heretic/study-<hash>/config.toml
+# runs/<run>/checkpoints/heretic/study-<study_id>/config.toml (search phase)
 quantization = "none"
 device_map = "auto"
 batch_size = 0
@@ -73,16 +79,16 @@ model = "model"
 n_trials = 50
 seed = 2779340105
 trial_index = 0
-model_action = "save"
+model_action = ""
 export_strategy = "merge"
-save_directory = "/…/workspace/models/candidates/<run>/c-1a2b3c4d-p0.partial"
+save_directory = "/…/runs/<run>/checkpoints/heretic/study-<study_id>/unused-save-directory"
 checkpoint_action = "restart"
 study_checkpoint_dir = "checkpoints"
 # … pinned dataset tables, [modifier.ARA] …
 ```
 
 ```bash
-cd runs/<run>/checkpoints/heretic/study-<hash> && COLUMNS=400 NO_COLOR=1 TERM=dumb \
+cd runs/<run>/checkpoints/heretic/study-<study_id> && COLUMNS=400 NO_COLOR=1 TERM=dumb \
   <workspace>/tools/envs/heretic-<fp>/bin/heretic          # stdin closed, own process group
 ```
 

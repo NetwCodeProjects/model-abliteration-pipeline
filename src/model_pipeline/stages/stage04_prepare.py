@@ -34,7 +34,6 @@ class PrepareEngineStage(Stage):
         "abliteration.max_trials",
         "abliteration.n_startup_trials",
         "abliteration.seed",
-        "abliteration.pareto_trial_index",
         "abliteration.reproduce",
         "evaluation.published_baselines",
     )
@@ -135,7 +134,7 @@ class PrepareEngineStage(Stage):
                 n_trials=config.get("abliteration.max_trials"),
                 n_startup_trials=config.get("abliteration.n_startup_trials"),
                 seed=seed,
-                trial_index=config.get("abliteration.pareto_trial_index"),
+                trial_index=0,  # stage 05 sets trial_index/model_action per phase (search-only, export-only)
                 save_directory="<set by stage 05>",
                 checkpoint_action="restart",
             )
@@ -225,7 +224,9 @@ class PrepareEngineStage(Stage):
             "experiment": experiment,
             "native": native,
             "seed": seed,
-            "pareto_trial_index": config.get("abliteration.pareto_trial_index"),
+            # Native keys computed from the budget (n_startup_trials = max_trials // 3 when unset). They are not
+            # part of the study identity: a continued study keeps its stored value whatever the new budget.
+            "budget_derived_keys": ["n_startup_trials"] if label == "optimize" and config.get("abliteration.n_startup_trials") is None else [],
             "reproduce_json": str(reproduce_path) if reproduce_path else None,
             "reproduce_changes_or_assumptions": reproduce_notes,
             "limitations": limitations,

@@ -38,13 +38,17 @@ Stage IDs and names are stable public contracts. Every executed stage writes
 - `--rerun` forces re-execution of the selected range; old receipts move to `receipts/history/`.
 - `--from N` never re-executes stages before N; they must have valid receipts (otherwise `E_MISSING_DEPENDENCY`, exit 7).
 - Skipped-as-not-applicable receipts satisfy dependencies (e.g. quantize-only skips 03–07).
-- **Stage 05 resume:** the Optuna journal lives in `checkpoints/heretic/study-<hash>/`; an interrupted
-  stage continues the same study (`checkpoint_action=continue`) after updating its stored
-  `n_trials`/`trial_index`. Incomplete `.partial` exports are deleted before retrying.
+- **Stage 05 phases and resume** ([study lifecycle](study-lifecycle.md)): search-only, constraint-based
+  selection, export-only, under a study lock, each recorded in `study-history.jsonl`. The journal lives in
+  `checkpoints/heretic/study-<study_id>/`; an interrupted stage reconciles open history intents with the
+  journal and continues the same study. A changed selection (fork) re-runs selection and export only,
+  with zero new trials; a larger budget continues the search. Incomplete `.partial` exports are deleted
+  before retrying.
 - **Stage 08 resume:** finished formats are reused via sub-receipts or via an existing finalized export
   with the same parent artifact and recipe ID (also across runs); finalized exports are never overwritten.
-- **Interrupts:** first SIGINT/SIGTERM is forwarded to the child (Heretic exports the best completed
-  trial on SIGINT), the stage is recorded `interrupted` (exit 130); a second signal aborts immediately.
+- **Interrupts:** first SIGINT/SIGTERM is forwarded to the child (a search stops without saving; the
+  journal is kept), the stage is recorded `interrupted` (exit 130) with an `interruption` entry in the
+  study history; a second signal aborts immediately.
 
 ## Capability findings (stage 00)
 

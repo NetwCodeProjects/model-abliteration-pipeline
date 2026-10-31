@@ -35,7 +35,7 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 
 | Concern | Where it lives |
 |---|---|
-| Trials, budget, seed, Pareto choice, export | `abliteration.*` (platform; mapped to Heretic `n_trials`, `seed`, `trial_index`, …) |
+| Trials, budget, seed, manual trial choice, export | `abliteration.*` (platform; mapped to Heretic `n_trials`, `seed`, `trial_index`, …); selection policy and constraints in `selection.*` ([study lifecycle](study-lifecycle.md)) |
 | Scorers, modifier (ARA/Abliteration), ARA hyper-parameters, datasets, dtypes, device map, batch size | native template TOML |
 | Reproduction source / approximation permission | `abliteration.reproduce.*` |
 | FP8 scheme and ignore list | `quantization.fp8.*` → llm-compressor `model_free_ptq` |
@@ -75,10 +75,11 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `abliteration.heretic_config` | string\|null | `null` |  | Native Heretic TOML template; null uses configs/heretic/<experiment>.toml. |
 | `abliteration.max_trials` | integer | `50` |  | Heretic n_trials (optimize). |
 | `abliteration.n_startup_trials` | integer\|null | `null` |  | Heretic n_startup_trials; null = min(template value, max_trials//3). |
-| `abliteration.max_runtime_minutes` | integer\|null | `180` | yes | Wall-clock budget; on expiry Heretic is interrupted and saves the configured Pareto trial. |
-| `abliteration.shutdown_grace_minutes` | integer | `90` | yes | Time allowed for saving after a budget stop before termination. |
+| `abliteration.max_runtime_minutes` | integer\|null | `180` | yes | Wall-clock budget for the search; on expiry the search stops and selection uses the completed trials. |
+| `abliteration.shutdown_grace_minutes` | integer | `90` | yes | Time allowed for an export-only invocation (load, restore, merge, save) and for stopping a search. |
 | `abliteration.seed` | integer\|null | `null` |  | Heretic seed; null generates one and records it. |
-| `abliteration.pareto_trial_index` | integer | `0` |  | Index into Heretic's sorted Pareto front (0 = fewest refusals). |
+| `abliteration.pareto_trial_index` | integer\|null | `null` |  | Manual choice by position in Heretic's sorted Pareto front (0 = fewest refusals); null = selection.policy. |
+| `abliteration.trial_id` | integer\|null | `null` |  | Manual choice of Heretic trial N ('Restoring model from trial N'); null = selection.policy. |
 | `abliteration.save_intermediate` | boolean | `true` |  | Keep candidate checkpoints after promotion. |
 | `abliteration.reproduce.source` | string\|null | `null` |  | reproduce.json: local path, https URL or hf://<repo>@<rev>/<path>. |
 | `abliteration.reproduce.reference_repo` | string\|null | `null` |  | Published reference to probe for reproduce/reproduce.json. |
@@ -106,6 +107,8 @@ first (`E_GATE_REQUIREMENT_MISSING`).
 | `selection.require_reload` | boolean | `true` |  |  |
 | `selection.optimizer_refusal_score` | string | `"Refusals"` |  | Heretic score name used as refusal rate. |
 | `selection.optimizer_kl_score` | string | `"KL divergence"` |  | Heretic score name used as KL. |
+| `selection.policy` | string (min_refusals_within_kl\|min_kl_within_refusals) | `"min_refusals_within_kl"` |  | Ranks completed trials that meet max_optimizer_refusal_rate/max_optimizer_kl (docs/study-lifecycle.md). |
+| `selection.allow_ineligible_choice` | boolean | `false` |  | Export a manual trial choice that fails the optimizer constraints (recorded; gates still apply). |
 | `selection.profile` | string (qualified\|research) | `"qualified"` |  | qualified: every required gate must pass; research: unmeasured required gates are accepted (master labelled research). |
 | `selection.optional_gates` | array | `[]` |  | Gates that never change the outcome (reported as warnings); only these may be disabled with a null threshold. |
 | `selection.override_gates` | array | `[]` |  | Required gates whose failure (or absence under the qualified profile) is bypassed; the master is labelled 'ungated'. |

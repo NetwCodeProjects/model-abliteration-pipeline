@@ -254,9 +254,10 @@ class FileLock:
     host is reclaimed, a lock owned by another host is never broken automatically.
     """
 
-    def __init__(self, path: str | os.PathLike[str], purpose: str) -> None:
+    def __init__(self, path: str | os.PathLike[str], purpose: str, error_id: str = "E_LOCK_HELD") -> None:
         self.path = Path(path)
         self.purpose = purpose
+        self.error_id = error_id
         self._held = False
 
     def _owner(self) -> dict[str, Any] | None:
@@ -272,11 +273,16 @@ class FileLock:
         if os.name == "nt":
             import ctypes
 
-            handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-            if handle:
-                ctypes.windll.kernel32.CloseHandle(handle)
-                return True
-            return False
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not handle:
+                return False
+            # A terminated process can still be opened while any handle to it exists; only STILL_ACTIVE means alive.
+            code = ctypes.c_ulong()
+            try:
+                return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+            finally:
+                kernel32.CloseHandle(handle)
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
@@ -298,15 +304,15 @@ class FileLock:
                     continue
                 raise LockHeld(
                     ExitCode.LOCKED,
-                    "E_LOCK_HELD",
+                    self.error_id,
                     f"{self.purpose} is locked by another process: {owner}",
-                    hint=f"Wait for the other run to finish. If you are certain it is dead, delete {self.path}.",
+                    hint=f"Wait for the other process to finish. If you are certain it is dead, delete {self.path}.",
                 ) from None
             with os.fdopen(fd, "wb") as handle:
                 handle.write(payload)
             self._held = True
             return self
-        raise LockHeld(ExitCode.LOCKED, "E_LOCK_HELD", f"Could not acquire lock {self.path}")
+        raise LockHeld(ExitCode.LOCKED, self.error_id, f"Could not acquire lock {self.path}")
 
     def release(self) -> None:
         if self._held:

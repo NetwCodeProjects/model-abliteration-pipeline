@@ -53,7 +53,16 @@ against `schemas/artifact.schema.json` (JSON Schema 2020-12) before it is writte
 | `validation.inference_passed` | `true`/`false` from a real loader test, **`null` = not tested** |
 | `validation.modalities_tested` | only modalities exercised by a real test (`["text","image"]` only after an mmproj test) |
 | `evaluation.metrics_provenance` | `not-evaluated`, `integrity-only`, `optimizer-only`, `fast-qualification`, `extended-qualification` |
-| `extensions` | optional details; consumers must tolerate unknown keys here. Masters carry `promotion` (outcome, reason, deciding gate, triggered gates, profile, run mode, candidate origin; see docs/evaluation.md), `evidence_status` and per-gate `gates` statuses (additive, no schema version change) |
+| `extensions` | optional details; consumers must tolerate unknown keys here. Masters carry `promotion` (outcome, reason, deciding gate, triggered gates, profile, run mode, candidate origin; see docs/evaluation.md), `evidence_status` and per-gate `gates` statuses, and `selection` (chosen study trial `number`/`index`, origin, policy, constraints, selection and export fingerprints; null for reproduction runs) (additive, no schema version change) |
+
+## Run files describing the study (not artifacts)
+
+| File | Content |
+|---|---|
+| `runs/<run>/metrics/selection-candidates.json` | every recorded trial with study trial identifier (`number`, Heretic `index`), state, Pareto position (informational), scores, eligibility, reasons and rank; the chosen trial and how; the closest trials when none is eligible ([schema](study-lifecycle.md#metricsselection-candidatesjson)) |
+| `runs/<run>/metrics/candidate.json` | the candidate, with `selection` (as in the master's `extensions.selection`) |
+| `runs/<run>/checkpoints/heretic/study-<study_id>/study.json` | study identity: `study_id`, `inputs_id`, engine commit, tool environment; `forked_from` / `replay_of` |
+| `runs/<run>/checkpoints/heretic/study-<study_id>/study-history.jsonl` | append-only intent/completion history of every search, selection and export ([format](study-lifecycle.md#study-history-study-dirstudy-historyjsonl)) |
 
 ## Commitments
 

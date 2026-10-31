@@ -109,7 +109,7 @@ actually tested), gates, metric provenance, tool versions and measured time.
 
 [architecture](docs/architecture.md) · [stages](docs/stages.md) · [cli](docs/cli.md) ·
 [configuration](docs/configuration.md) · [Lambda](docs/deployment-lambda.md) · [Ubuntu](docs/deployment-ubuntu.md) ·
-[Heretic adapter](docs/heretic-adapter.md) · [quantization](docs/quantization.md) · [evaluation](docs/evaluation.md) ·
+[Heretic adapter](docs/heretic-adapter.md) · [study lifecycle](docs/study-lifecycle.md) · [quantization](docs/quantization.md) · [evaluation](docs/evaluation.md) ·
 [artifact schema](docs/artifact-schema.md) · [security](docs/security-and-trust.md) · [troubleshooting](docs/troubleshooting.md) ·
 [limitations](docs/limitations.md) · [implementation log](docs/implementation-log.md) · [original specification](docs/PROJECT_A_AGENT_HANDOFF.md)
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import socket
+import subprocess
+import sys
 
 import pytest
 from conftest import ROOT, make_tiny_model
@@ -72,6 +74,26 @@ def test_file_lock_blocks_live_owner_and_reclaims_stale(tmp_path):
     lock_path.write_text(json.dumps({"host": "another-host", "pid": 1, "since": 0}))
     with pytest.raises(PipelineError):
         FileLock(lock_path, "run").acquire()
+
+
+def test_file_lock_of_a_killed_process_is_stale_even_while_a_handle_is_open(tmp_path):
+    # Windows keeps a terminated process openable while any handle exists (here: the Popen object),
+    # found when a killed pipeline's lock blocked the resumed run.
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        assert FileLock._pid_alive(proc.pid)
+    finally:
+        proc.kill()
+        proc.wait()
+    lock_path = tmp_path / ".lock"
+    lock_path.write_text(json.dumps({"host": socket.gethostname(), "pid": proc.pid, "since": 0}))
+    with FileLock(lock_path, "study", error_id="E_STUDY_LOCKED"):
+        assert json.loads(lock_path.read_text())["pid"] == os.getpid()
+    lock_file = FileLock(lock_path, "study", error_id="E_STUDY_LOCKED").acquire()
+    with pytest.raises(PipelineError) as err:
+        FileLock(lock_path, "study", error_id="E_STUDY_LOCKED").acquire()
+    lock_file.release()
+    assert err.value.error_id == "E_STUDY_LOCKED"
 
 
 def test_link_or_copy_tree_and_quick_fingerprint(tmp_path):

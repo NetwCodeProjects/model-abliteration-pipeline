@@ -1,16 +1,18 @@
 """Read/update a Heretic Optuna study journal (runs inside the heretic environment).
 
-export          - all trials plus the Pareto front sorted exactly like Heretic's trial menu
-                  (ascending objective values in configured scorer order).
-update-settings - set n_trials / trial_index in the study's stored settings before Heretic is run
-                  with checkpoint_action=continue (Heretic restores settings from the study, so this
-                  is the only way to change them for a continued study). Uses Optuna's public API,
-                  mirroring what Heretic itself does when running additional trials.
+export       - all trials plus the Pareto front sorted exactly like Heretic's trial menu
+               (ascending objective values in configured scorer order).
+set-settings - set n_trials / trial_index / model_action in the study's stored settings before
+               Heretic is run with checkpoint_action=continue (a continued study restores its stored
+               settings and ignores config.toml for them). Sets exactly the given values: export-only
+               passes n_trials = len(study.trials) so Heretic adds zero trials (docs/step0-feasibility.md).
+               Uses Optuna's public API, as Heretic itself does.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 
@@ -18,6 +20,9 @@ import optuna
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend, JournalFileOpenLock
 from optuna.trial import TrialState
+
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+CONTROLLED = ("n_trials", "trial_index", "model_action")
 
 
 def load(journal: str) -> optuna.Study:
@@ -39,7 +44,8 @@ def trial_dict(trial) -> dict:
 
 
 def export(study: optuna.Study, requested: int) -> dict:
-    settings = json.loads(study.user_attrs["settings"])
+    raw = study.user_attrs["settings"]
+    settings = json.loads(raw)
     positions = [i for i, s in enumerate(settings.get("scorers", [])) if s.get("optimization") != "none"]
     complete = [t for t in study.trials if t.state == TrialState.COMPLETE]
     pareto = study.best_trials if complete else []
@@ -53,6 +59,8 @@ def export(study: optuna.Study, requested: int) -> dict:
         "finished": bool(study.user_attrs.get("finished")),
         "n_trials_setting": settings.get("n_trials"),
         "trial_index_setting": settings.get("trial_index"),
+        "model_action_setting": settings.get("model_action"),
+        "settings_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
         "requested_trial_index": requested,
         "seed": settings.get("seed"),
         "objective_scorers": [settings["scorers"][i] for i in positions],
@@ -61,30 +69,30 @@ def export(study: optuna.Study, requested: int) -> dict:
     }
 
 
-def update(study: optuna.Study, n_trials: int, trial_index: int) -> dict:
+def set_settings(study: optuna.Study, n_trials: int, trial_index: int, model_action: str) -> dict:
     settings = json.loads(study.user_attrs["settings"])
-    recorded = len(study.trials)
-    settings["n_trials"] = max(n_trials, recorded)
-    settings["trial_index"] = trial_index
+    before = {k: settings.get(k) for k in CONTROLLED}
+    settings.update(n_trials=n_trials, trial_index=trial_index, model_action=model_action)
     study.set_user_attr("settings", json.dumps(settings))
-    finished = recorded >= settings["n_trials"]
-    study.set_user_attr("finished", finished)
-    return {"ok": True, "trials": recorded, "n_trials": settings["n_trials"], "trial_index": trial_index, "finished": finished}
+    return {"ok": True, "trials": len(study.trials), "before": before, "after": {k: settings[k] for k in CONTROLLED}}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["export", "update-settings"])
+    parser.add_argument("command", choices=["export", "set-settings"])
     parser.add_argument("--journal", required=True)
     parser.add_argument("--trial-index", type=int, default=0)
     parser.add_argument("--n-trials", type=int)
+    parser.add_argument("--model-action", choices=["save", "none"], help="none = '' (search only: finish without saving)")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     study = load(args.journal)
     if args.command == "export":
         result = export(study, args.trial_index)
     else:
-        result = update(study, args.n_trials or len(study.trials), args.trial_index)
+        if args.n_trials is None or args.model_action is None:
+            parser.error("set-settings needs --n-trials and --model-action")
+        result = set_settings(study, args.n_trials, args.trial_index, "" if args.model_action == "none" else args.model_action)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2, default=str)
     return 0

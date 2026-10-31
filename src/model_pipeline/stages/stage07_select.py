@@ -50,7 +50,8 @@ class SelectMasterStage(Stage):
             qualification["metrics"] = qualification["independent"]
         selection_cfg = config.get("selection")
         gates = evaluate_gates(selection_cfg, candidate["summary"], qualification)
-        origin = {"kind": "pareto_position", "position": config.get("abliteration.pareto_trial_index")}
+        selected = candidate.get("selection") or {}
+        origin = selected.get("origin") or {"kind": "reproduction" if candidate["label"] != "optimize" else "unknown"}
         promotion = decide(gates, selection_cfg, run_mode=candidate["label"], origin=origin)
         ungated = promotion["outcome"] == "promoted:ungated"
         decision = {
@@ -71,8 +72,8 @@ class SelectMasterStage(Stage):
             if promotion["reason"] == "required_gate_failed":
                 error_id, what = "E_GATES_FAILED", "failed promotion gates"
                 hint = (
-                    "No master was promoted. Adjust selection thresholds, choose another Pareto trial "
-                    "(abliteration.pareto_trial_index, resumes the same study) or override specific gates with selection.override_gates."
+                    "No master was promoted. Choose another trial (--resume RUN --fork --trial-id N: zero new trials, "
+                    "see metrics/selection-candidates.json) or override specific gates with selection.override_gates."
                 )
             else:
                 error_id, what = "E_GATES_UNMEASURED", "has required gates without evidence"
@@ -156,6 +157,9 @@ class SelectMasterStage(Stage):
                 "candidate_id": candidate["candidate_id"],
                 "heretic_parameters": candidate["summary"].get("exported_parameters"),
                 "heretic_trial_index": candidate["summary"].get("exported_trial_index"),
+                "selection": {k: selected.get(k) for k in ("chosen", "origin", "policy", "constraints", "selection_fingerprint", "export_fingerprint")}
+                if selected
+                else None,
                 "optimizer_metrics": {k: candidate["summary"].get(k) for k in ("optimizer_refusal_rate", "optimizer_kl", "provenance")},
                 "seed": candidate.get("seed"),
                 "dtype_summary": summary,

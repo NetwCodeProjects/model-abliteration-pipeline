@@ -87,7 +87,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--qualification", choices=["off", "fast", "extended"], help="qualification depth (stage 06)")
     p.add_argument("--max-trials", type=positive_int, metavar="N", help="Heretic trial budget")
     p.add_argument("--max-runtime-minutes", type=positive_int, metavar="N", help="wall-clock budget for Heretic optimization")
-    p.add_argument("--pareto-index", type=non_negative_int, metavar="N", help="Pareto-front trial Heretic exports (0 = fewest refusals)")
+    choice = p.add_mutually_exclusive_group()
+    choice.add_argument("--trial-id", type=positive_int, metavar="N", help="export Heretic trial N instead of the policy choice (gates still apply)")
+    choice.add_argument("--pareto-index", type=non_negative_int, metavar="N", help="export the trial at Pareto position N (0 = fewest refusals)")
     p.add_argument("--yes", "-y", action="store_true", help="acknowledge the compatibility notice and confirm downloads/installs non-interactively")
     p.add_argument("--output-dir", metavar="DIR", help="workspace root (storage.root)")
     p.add_argument("--log-level", choices=["debug", "info", "warning"], help="console verbosity")
@@ -110,8 +112,8 @@ def check_combinations(args: argparse.Namespace, parser: argparse.ArgumentParser
         parser.error("--fork requires --resume RUN_ID")
     if args.revision and args.model_path:
         parser.error("--revision applies to --model-url, not --model-path")
-    if args.quantize_only and (args.experiment or args.allow_approximate_reproduction or args.max_trials or args.pareto_index is not None):
-        parser.error("--experiment/--max-trials/--pareto-index/--allow-approximate-reproduction have no effect with --quantize-only")
+    if args.quantize_only and (args.experiment or args.allow_approximate_reproduction or args.max_trials or args.pareto_index is not None or args.trial_id):
+        parser.error("--experiment/--max-trials/--trial-id/--pareto-index/--allow-approximate-reproduction have no effect with --quantize-only")
     if args.confirm_cleanup and not args.cleanup:
         parser.error("--confirm-cleanup requires --cleanup")
 
@@ -154,8 +156,12 @@ def to_overrides(args: argparse.Namespace) -> dict[str, Any]:
         o["abliteration.max_trials"] = args.max_trials
     if args.max_runtime_minutes:
         o["abliteration.max_runtime_minutes"] = args.max_runtime_minutes
+    if args.trial_id:
+        o["abliteration.trial_id"] = args.trial_id
+        o["abliteration.pareto_trial_index"] = None
     if args.pareto_index is not None:
         o["abliteration.pareto_trial_index"] = args.pareto_index
+        o["abliteration.trial_id"] = None
     if args.yes:
         o["execution.yes"] = True
     if args.dry_run:
