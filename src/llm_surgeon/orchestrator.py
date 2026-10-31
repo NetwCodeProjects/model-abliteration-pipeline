@@ -18,6 +18,8 @@ from typing import Any
 from . import __version__
 from .adapters.hf_hub import HubClient
 from .artifacts.manifest import ArtifactRegistry
+from .banner import gpu_label
+from .banner import render as render_banner
 from .config import (
     COMPATIBILITY_NOTICE,
     PROJECT_ROOT,
@@ -325,6 +327,10 @@ class Orchestrator:
     def execute(self, config: ResolvedConfig, options: RunOptions) -> int:
         redactor = Redactor((config.get("model.hf_token_env"),))
         logger = EventLogger(None, redactor, config.get("logging.console_level"))
+        # The dry run promises no subprocesses, so it does not ask nvidia-smi for the GPU.
+        gpus = None if options.dry_run else self.services.probe_factory(True).gpus()
+        self.stream.write(render_banner(__version__, gpu_label(gpus, probed=not options.dry_run)) + "\n")
+        self.stream.flush()
         if options.dry_run:
             return self.dry_run(config, options)
         run_id, config, parent, how = self._prepare_run(config, options, logger)

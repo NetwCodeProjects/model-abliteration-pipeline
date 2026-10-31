@@ -294,3 +294,34 @@ def test_non_interactive_run_without_yes_requires_confirmation(tmp_path, monkeyp
     code = main(["--config", "none", "--model-url", "a/b", "--output-dir", str(tmp_path / "ws")])
     assert code == ExitCode.CONFIRMATION_REQUIRED
     assert not (tmp_path / "ws").exists()
+
+
+def test_bare_invocation_shows_the_welcome_screen_and_runs_nothing():
+    from conftest import FakeProbe
+
+    from llm_surgeon.orchestrator import Services
+
+    out = io.StringIO()
+    services = Services(probe_factory=lambda allow_exec: FakeProbe(), confirm=lambda m: False)
+    assert main([], services=services, stream=out) == 0
+    text = out.getvalue()
+    assert "MODEL ABLATION & QUANTIZATION" in text and "v1.0.0" in text and "GPU type: NVIDIA B200" in text
+    assert "Welcome to LLM Surgeon." in text and "Preview:  ./main.sh --dry-run" in text
+
+
+def test_banner_lines_and_gpu_labels():
+    from llm_surgeon.banner import WIDTH, gpu_label, render
+
+    text = render("1.0.0", gpu_label([{"name": "NVIDIA B300 SXM6 AC"}] * 8))
+    tagline = next(line for line in text.splitlines() if "QUANTIZATION" in line)
+    assert len(tagline) == WIDTH + 1 and tagline.endswith("v1.0.0"), "version right-aligned with the separator"
+    assert " GPU type: NVIDIA B300 SXM6 AC x8" in text and "Welcome" not in text
+    assert gpu_label(None).startswith("none detected") and gpu_label(None, probed=False) == "not probed (dry run)"
+    assert gpu_label([{"name": "A"}, {"name": "B"}]) == "A, B"
+
+
+def test_dry_run_starts_with_the_banner_without_probing_the_gpu(tmp_path):
+    out = io.StringIO()
+    assert main(["--config", "none", "--model-url", "a/b", "--dry-run", "--output-dir", str(tmp_path)], stream=out) == 0
+    text = out.getvalue()
+    assert text.index("MODEL ABLATION") < text.index("DRY RUN") and "GPU type: not probed (dry run)" in text

@@ -3,7 +3,7 @@
 #
 # Python selection (no surprise installs):
 #   1. the project control venv (.venv) if it exists;
-#   2. --help/--version/--list-stages: any system python3 >= 3.10 (stdlib only);
+#   2. no arguments (welcome screen), --help/--version/--list-stages: any system python3 >= 3.10 (stdlib only);
 #   3. --dry-run and inspection flags: a system python3 that already has PyYAML (python3-yaml);
 #   4. anything else bootstraps .venv first (uv sync --frozen, or venv + pip with hash-locked
 #      requirements) after confirmation (--yes or an interactive 'y'). Nothing is curl'ed into a shell.
@@ -72,7 +72,7 @@ fi
 
 SYS_PY="$(find_system_python)" || { echo "ERROR [E_PYTHON_MISSING] Python >= 3.10 not found (sudo apt-get install -y python3)" >&2; exit 5; }
 
-if has_arg --help || has_arg -h || has_arg --version || has_arg --list-stages; then
+if [ "$#" -eq 0 ] || has_arg --help || has_arg -h || has_arg --version || has_arg --list-stages; then
   exec "$SYS_PY" -m llm_surgeon "$@"
 fi
 

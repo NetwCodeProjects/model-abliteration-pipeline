@@ -44,6 +44,7 @@ llm-compressor `0.14.0.1`, vLLM `0.32.0`.
 
 ```bash
 git clone https://github.com/NetwCodeProjects/llm-surgeon.git && cd llm-surgeon
+./main.sh                                                   # welcome screen: banner, detected GPU, where to start
 ./main.sh --help
 ./main.sh --config configs/pipeline.yaml --dry-run          # zero side effects: plan, components, disk estimate
 ./main.sh --setup-only --yes                                # bootstrap .venv + provision pinned tool environments

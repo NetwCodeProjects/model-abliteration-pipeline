@@ -131,7 +131,7 @@ def describe_plan(config: ResolvedConfig, options: RunOptions, probe: HostProbe)
 
     lines: list[str] = []
     add = lines.append
-    add("Project A pipeline - DRY RUN (no network, downloads, installs, GPU work, model loading or file writes)")
+    add("DRY RUN (no network, downloads, installs, GPU work, model loading or file writes)")
     add(f"Config sources : {', '.join(config.sources)}")
     add(f"Config hash    : {config.config_hash}")
     model = config.get("model.url") or config.get("model.local_path")

@@ -8,6 +8,7 @@ and runs `python -m llm_surgeon`. `./main.sh --bootstrap --yes` only creates `.v
 
 | Flag | Config key | Notes |
 |---|---|---|
+| *(no arguments)* | — | welcome screen (banner, detected GPU, where to start) and exit 0; works before `.venv` exists. A run needs at least one argument, e.g. `./main.sh --yes` |
 | `--config PATH` | — | default `configs/pipeline.yaml`; `none` = built-in defaults |
 | `--model-url REF` | `model.url` | repo ID or `https://huggingface.co/<org>/<name>`; normalized, never shell-interpreted; other hosts, queries, `/tree/…` paths rejected |
 | `--model-path DIR` | `model.local_path` | exclusive with `--model-url`; provenance recorded as `supplied` |
@@ -39,6 +40,9 @@ and runs `python -m llm_surgeon`. `./main.sh --bootstrap --yes` only creates `.v
 Mutually exclusive / invalid combinations (exit 2): `--lambda-stack`+`--ubuntu`; `--model-url`+`--model-path`;
 `--setup-only` with `--from/--through/--only`; `--only` with `--from/--through`; `--fork` without `--resume`;
 `--resume`+`--new-run`; `--trial-id`+`--pareto-index`; `--revision` with `--model-path`; `--quantize-only` with abliteration-only flags.
+
+Every run and dry run starts with the same banner (version and GPU type; a dry run does not query the
+GPU, so it shows `not probed (dry run)`).
 
 ## Precedence
 

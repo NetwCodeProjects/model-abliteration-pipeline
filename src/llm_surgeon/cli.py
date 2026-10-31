@@ -226,6 +226,15 @@ def config_path_from(args: argparse.Namespace) -> Path | None:
 
 def main(argv: list[str] | None = None, services: Any = None, stream=None) -> int:
     stream = stream or sys.stdout
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv:
+        # A bare ./main.sh shows the welcome screen; a run always needs at least one argument (e.g. --yes).
+        from .banner import gpu_label, render  # noqa: PLC0415
+        from .environment.detect import HostProbe  # noqa: PLC0415
+
+        probe = services.probe_factory(True) if services is not None else HostProbe(allow_exec=True)
+        stream.write(render(__version__, gpu_label(probe.gpus()), welcome=True))
+        return int(ExitCode.OK)
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.version:
